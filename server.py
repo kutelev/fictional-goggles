@@ -53,4 +53,4 @@ def login_post():
     else:
         return login_form_template.render(message='Login failed! Username or password is incorrect.')
 
-run(host='192.168.200.100', port=8080)
+run(host='', port=8080)
