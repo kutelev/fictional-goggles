@@ -37,8 +37,8 @@ def login_post():
 
     rest_response = rest_response.json()
 
-    if rest_response['Status'] == 'Ok':
-        auth_token = rest_response['Token']
+    if rest_response['status'] == 'ok':
+        auth_token = rest_response['token']
         response.set_cookie('token', auth_token, secret=cookie_secret)
         redirect('/')
         return
