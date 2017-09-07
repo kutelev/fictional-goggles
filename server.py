@@ -1,9 +1,21 @@
 from hashlib import md5
-from bottle import route, run, request
+from uuid import uuid4
+from bottle import route, request, response, redirect, run, SimpleTemplate
 from pymongo import MongoClient
 
 mongo_client = MongoClient()
 users_db = mongo_client.users
+
+cookie_secret = 'nboitCJ05G3y80QU'
+authenticated_users = dict()
+
+login_form_template = \
+    SimpleTemplate('<html><body>{{message}}'
+                   '<form action="/login" method="post">'
+                   'Username: <input name="username" type="text" />'
+                   'Password: <input name="password" type="password" />'
+                   '<input value="Login" type="submit" />'
+                   '</form></body></html>')
 
 
 def check_login(username, password):
@@ -16,27 +28,29 @@ def check_login(username, password):
     return True
 
 
-def login_form(failed=False):
-    return '<html><body>{}' \
-           '<form action="/login" method="post">' \
-           'Username: <input name="username" type="text" />' \
-           'Password: <input name="password" type="password" />' \
-           '<input value="Login" type="submit" />' \
-           '</form></body></html>'.format(
-        'Login failed! Username or password is incorrect.' if failed else '')
+@route('/')
+def main_page():
+    auth_key = request.get_cookie('auth_key', secret=cookie_secret)
+    if auth_key and auth_key in authenticated_users:
+        return authenticated_users[auth_key]
+    redirect('/login')
 
 
 @route('/login')
-def login():
-    return login_form()
+def login_get():
+    return login_form_template.render(message='')
+
 
 @route('/login', method='POST')
-def do_login():
+def login_post():
     username = request.forms.get('username')
     password = request.forms.get('password')
     if check_login(username, password):
-        return 'Login succeeded!'
+        auth_key = str(uuid4())
+        authenticated_users[auth_key] = username
+        response.set_cookie('auth_key', auth_key, secret=cookie_secret)
+        redirect('/')
     else:
-        return login_form(True)
+        return login_form_template.render(message='Login failed! Username or password is incorrect.')
 
 run(host='192.168.200.100', port=8080)
