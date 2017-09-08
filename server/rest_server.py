@@ -16,6 +16,7 @@ authenticated_users = dict()
 failed_response = {'status': 'failed'}
 failed_response = json.dumps(failed_response)
 
+
 @route('/restapi/login', method=['GET', 'PUT'])
 def restapi_login():
     if request.method == 'GET':
@@ -41,6 +42,28 @@ def restapi_login():
         auth_token = str(uuid4())
         authenticated_users[auth_token] = username
         ok_response['token'] = auth_token
+        return ok_response
+
+
+@route('/restapi/logout', method=['GET', 'PUT'])
+def restapi_logout():
+    if request.method == 'GET':
+        return 'Not documented yet.'
+    elif request.method == 'PUT':
+        ok_response = {'status': 'ok'}
+
+        data = json.load(utf8reader(request.body))
+        if 'token' not in data:
+            return failed_response
+
+        token = data.pop('token')
+
+        if token not in authenticated_users:
+            return failed_response
+
+        authenticated_users.pop(token)
+
+        response.headers['Content-Type'] = 'application/json'
         return ok_response
 
 
