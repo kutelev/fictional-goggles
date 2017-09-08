@@ -5,12 +5,14 @@ from bottle import route, request, response, redirect, run, SimpleTemplate
 cookie_secret = 'nboitCJ05G3y80QU'
 
 login_form_template = \
-    SimpleTemplate('<html><body>{{message}}'
-                   '<form action="/login" method="post">'
-                   'Username: <input name="username" type="text" />'
-                   'Password: <input name="password" type="password" />'
-                   '<input value="Login" type="submit" />'
-                   '</form></body></html>')
+    SimpleTemplate('<html><head><title>Login page</title>'
+                   '<style>table { margin-left: auto; margin-right: auto; }</style>'
+                   '</head><body>{{message}}'
+                   '<form action="/login" method="post"><table>'
+                   '<tr><td>Username:</td><td><input name="username" type="text" /></td></tr>'
+                   '<tr><td>Password:</td><td><input name="password" type="password" /></td></tr>'
+                   '<tr><td colspan="2" style="text-align: center;"><input value="Login" type="submit" /></td></tr>'
+                   '</table></form></body></html>')
 
 
 def is_authenticated(token):
