@@ -6,6 +6,7 @@ from uuid import uuid4
 from bottle import route, request, response, run
 from pymongo import MongoClient
 from datetime import datetime
+from initdb import initdb
 
 utf8reader = codecs.getreader('utf8')
 
@@ -17,6 +18,18 @@ authenticated_users = dict()
 
 failed_response = {'status': 'failed'}
 failed_response = json.dumps(failed_response)
+
+
+# For testing purposes only
+@route('/restapi/resetdb', method='PUT')
+def restapi_resetdb():
+    ok_response = {'status': 'ok'}
+    data = json.load(utf8reader(request.body))
+    if 'magic_key' not in data or data['magic_key'] != 'c4f1571a-9450-11e7-a0a6-0b95339866a9':
+        return failed_response
+
+    initdb()
+    return ok_response
 
 
 @route('/restapi/login', method=['GET', 'PUT'])

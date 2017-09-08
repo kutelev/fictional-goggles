@@ -11,6 +11,21 @@ def restapi_url(call):
     return '{}/{}'.format(restapi_base_url, call)
 
 
+def resetdb():
+    response = requests.put(restapi_url('resetdb'),
+                            json={'magic_key': 'c4f1571a-9450-11e7-a0a6-0b95339866a9'})
+
+    response = response.json()
+
+    if response['status'] == 'ok':
+        return True
+
+    assert len(response) == 1
+    assert response['status'] == 'failed'
+
+    return False
+
+
 def login(username, password):
     response = requests.put(restapi_url('login'),
                             json={'username': username, 'password': password})
@@ -26,18 +41,6 @@ def login(username, password):
     return None
 
 
-class Session:
-    def __init__(self, username, password):
-        self.token = login(username, password)
-        assert self.token
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, type, value, traceback):
-        assert logout(self.token)
-
-
 def logout(token):
     response = requests.put(restapi_url('logout'),
                             json={'token': token})
@@ -51,6 +54,18 @@ def logout(token):
     assert response['status'] == 'failed'
 
     return False
+
+
+class Session:
+    def __init__(self, username, password):
+        self.token = login(username, password)
+        assert self.token
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        assert logout(self.token)
 
 
 def usermod(token, key=None, new_value=None):
@@ -91,6 +106,15 @@ def add_friend(token, friend_username):
 
 def del_friend(token, friend_username):
     return add_or_del_friend(token, friend_username, False)
+
+
+@pytest.fixture()
+def resetdb_fixture():
+    resetdb()
+
+
+def setup_module(module):
+    resetdb()
 
 
 def test_login_logout():
