@@ -3,8 +3,10 @@ import pytest
 import itertools
 
 from time import sleep
+from os import getenv
 
-restapi_base_url = 'http://localhost:8081/restapi'
+hostname= getenv('FRICTIONAL_GOGGLES_IP', 'localhost:8081')
+restapi_base_url = 'http://{}/restapi'.format(hostname)
 users = [{'username': 'user{}'.format(i), 'password': '1234'} for i in range(1, 6)]
 
 
