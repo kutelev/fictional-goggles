@@ -12,11 +12,8 @@ def restapi_url(call):
     return '{}/{}'.format(restapi_base_url, call)
 
 
-def resetdb():
-    response = requests.put(restapi_url('resetdb'),
-                            json={'magic_key': 'c4f1571a-9450-11e7-a0a6-0b95339866a9'})
-
-    response = response.json()
+def send_request(call_name, request):
+    response = requests.put(restapi_url(call_name), json=request).json()
 
     if response['status'] == 'ok':
         return True
@@ -25,6 +22,10 @@ def resetdb():
     assert response['status'] == 'failed'
 
     return False
+
+
+def resetdb():
+    return send_request('resetdb', {'magic_key': 'c4f1571a-9450-11e7-a0a6-0b95339866a9'})
 
 
 def login(username, password):
@@ -43,18 +44,7 @@ def login(username, password):
 
 
 def logout(token):
-    response = requests.put(restapi_url('logout'),
-                            json={'token': token})
-
-    response = response.json()
-
-    if response['status'] == 'ok':
-        return True
-
-    assert len(response) == 1
-    assert response['status'] == 'failed'
-
-    return False
+    return send_request('logout', {'token': token})
 
 
 class Session:
@@ -86,35 +76,26 @@ def usermod(token, key=None, new_value=None):
     return None
 
 
-def add_or_del_friend(token, friend_username, add=True):
-    response = requests.put(restapi_url('addfriend' if add else 'delfriend'),
-                            json={'token': token, 'friend_username': friend_username})
-
-    response = response.json()
-
-    if response['status'] == 'ok':
-        return True
-
-    assert len(response) == 1
-    assert response['status'] == 'failed'
-
-    return False
-
-
 def add_friend(token, friend_username):
-    return add_or_del_friend(token, friend_username, True)
+    return send_request('addfriend', {'token': token, 'friend_username': friend_username})
 
 
 def del_friend(token, friend_username):
-    return add_or_del_friend(token, friend_username, False)
+    return send_request('delfriend', {'token': token, 'friend_username': friend_username})
 
 
-@pytest.fixture()
-def resetdb_fixture():
-    resetdb()
+def sendmsg(token, recipient, content):
+    return send_request('sendmsg', {'token': token, 'recipient': recipient, 'content': content})
 
 
-def setup_module(module):
+@pytest.fixture(scope="function", autouse=True)
+def resetdb_fixture(request):
+    def teardown():
+        resetdb()
+    request.addfinalizer(teardown)
+
+
+def setup_module():
     resetdb()
 
 
@@ -188,3 +169,24 @@ def test_add_del_friend():
             else:
                 assert del_friend(session.token, user2['username'])
                 assert not del_friend(session.token, user2['username'])
+
+
+def test_sendmsg():
+    for user1, user2 in itertools.product(users, users):
+        packed_user1 = user1['username'], user1['password']
+        packed_user2 = user2['username'], user2['password']
+        with Session(*packed_user1) as session1, Session(*packed_user2) as session2:
+            if user1['username'] == user2['username']:
+                assert not add_friend(session1.token, user2['username'])
+                assert not sendmsg(session1.token, user2['username'], 'message')
+            else:
+                assert not sendmsg(session1.token, user2['username'], 'message')
+                assert not sendmsg(session2.token, user1['username'], 'message')
+                assert add_friend(session1.token, user2['username'])
+                assert not sendmsg(session1.token, user2['username'], 'message')
+                assert not sendmsg(session2.token, user1['username'], 'message')
+                assert add_friend(session2.token, user1['username'])
+                assert sendmsg(session1.token, user2['username'], 'message')
+                assert sendmsg(session2.token, user1['username'], 'message')
+                assert del_friend(session1.token, user2['username'])
+                assert del_friend(session2.token, user1['username'])

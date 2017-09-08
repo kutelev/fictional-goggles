@@ -13,11 +13,16 @@ utf8reader = codecs.getreader('utf8')
 mongo_client = MongoClient()
 users_db = mongo_client.users.posts
 friends_db = mongo_client.friends.posts
+messages_db = mongo_client.messages.posts
 
 authenticated_users = dict()
 
 failed_response = {'status': 'failed'}
 failed_response = json.dumps(failed_response)
+
+
+def cur_datetime():
+    return datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
 
 
 # For testing purposes only
@@ -53,7 +58,7 @@ def restapi_login():
         if user['password'] != md5(password.encode()).hexdigest():
             return failed_response
 
-        user['last_login'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+        user['last_login'] = cur_datetime()
         users_db.update_one({'_id': user['_id']}, {"$set": user}, upsert=False)
 
         response.headers['Content-Type'] = 'application/json'
@@ -200,6 +205,52 @@ def restapi_delfriend():
             return failed_response
 
         friends_db.delete_one(friends)
+        return ok_response
+
+
+@route('/restapi/sendmsg', method=['GET', 'PUT'])
+def restapi_sendmsg():
+    if request.method == 'GET':
+        return 'Not documented yet.'
+    elif request.method == 'PUT':
+        ok_response = {'status': 'ok'}
+
+        data = json.load(utf8reader(request.body))
+
+        if {'token', 'recipient', 'content'} - set(data.keys()):
+            return failed_response
+
+        token = data['token']
+
+        if token not in authenticated_users:
+            return failed_response
+
+        username = authenticated_users[token]
+        recipient_username = data['recipient']
+        content = data['content']
+
+        if username == recipient_username:
+            return failed_response
+
+        if len(content) > 1024:
+            return failed_response
+
+        cursor = users_db.find({'username': recipient_username})
+        if cursor.count() != 1:
+            return failed_response
+
+        for username1, username2 in ((username, recipient_username), (recipient_username, username)):
+            friends = {'username': username1, 'friend_username': username2}
+            cursor = friends_db.find(friends)
+            if cursor.count() != 1:
+                return failed_response
+
+        message = {'from': username,
+                   'to': recipient_username,
+                   'content': content,
+                   'datetime': cur_datetime()}
+
+        messages_db.insert_one(message)
         return ok_response
 
 
