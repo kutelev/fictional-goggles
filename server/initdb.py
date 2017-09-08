@@ -1,11 +1,22 @@
 from hashlib import md5
 from pymongo import MongoClient
+from pymongo.errors import ConnectionFailure
 from pprint import pprint
+from time import sleep
 
 mongo_client = MongoClient()
 users_db = mongo_client.users.posts
 friends_db = mongo_client.friends.posts
 messages_db = mongo_client.messages.posts
+
+
+while True:
+    try:
+        mongo_client.admin.command('ismaster')
+        break
+    except ConnectionFailure:
+        sleep(1)
+        continue
 
 
 def user(i):

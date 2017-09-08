@@ -1,3 +1,5 @@
 mongod > /dev/null 2>&1 &
-sleep 10 # Just in case
-python3 rest_server.py
+python3 initdb.py > /dev/null 2>&1
+python3 rest_server.py > /dev/null 2>&1 &
+python3 web_server.py > /dev/null 2>&1 &
+nginx -g 'daemon off;'
