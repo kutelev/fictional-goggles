@@ -1,5 +1,6 @@
 import requests
 import pytest
+import itertools
 
 from time import sleep
 
@@ -172,10 +173,18 @@ def test_usermod_change_password():
 
 
 def test_add_del_friend():
-    user1 = users[0]
-    user2 = users[1]
-    with Session(user1['username'], user1['password']) as session:
-        assert add_friend(session.token, user2['username'])
-        assert not add_friend(session.token, user2['username'])
-        assert del_friend(session.token, user2['username'])
-        assert not del_friend(session.token, user2['username'])
+    for user1, user2 in itertools.product(users, users):
+        with Session(user1['username'], user1['password']) as session:
+            if user1['username'] == user2['username']:
+                assert not add_friend(session.token, user2['username'])
+            else:
+                assert add_friend(session.token, user2['username'])
+                assert not add_friend(session.token, user2['username'])
+
+    for user1, user2 in itertools.product(users, users):
+        with Session(user1['username'], user1['password']) as session:
+            if user1['username'] == user2['username']:
+                assert not del_friend(session.token, user2['username'])
+            else:
+                assert del_friend(session.token, user2['username'])
+                assert not del_friend(session.token, user2['username'])

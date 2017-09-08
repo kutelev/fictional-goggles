@@ -153,6 +153,9 @@ def restapi_addfriend():
         username = authenticated_users[token]
         friend_username = data['friend_username']
 
+        if username == friend_username:
+            return failed_response
+
         cursor = users_db.find({'username': friend_username})
         if cursor.count() != 1:
             return failed_response
