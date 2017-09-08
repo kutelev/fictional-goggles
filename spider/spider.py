@@ -20,6 +20,9 @@ def login(username, password):
     if response['status'] == 'ok':
         return response['token']
 
+    assert len(response) == 1
+    assert response['status'] == 'failed'
+
     return None
 
 
@@ -44,6 +47,9 @@ def logout(token):
     if response['status'] == 'ok':
         return True
 
+    assert len(response) == 1
+    assert response['status'] == 'failed'
+
     return False
 
 
@@ -58,7 +64,33 @@ def usermod(token, key=None, new_value=None):
     if response['status'] == 'ok':
         return response
 
+    assert len(response) == 1
+    assert response['status'] == 'failed'
+
     return None
+
+
+def add_or_del_friend(token, friend_username, add=True):
+    response = requests.put(restapi_url('addfriend' if add else 'delfriend'),
+                            json={'token': token, 'friend_username': friend_username})
+
+    response = response.json()
+
+    if response['status'] == 'ok':
+        return True
+
+    assert len(response) == 1
+    assert response['status'] == 'failed'
+
+    return False
+
+
+def add_friend(token, friend_username):
+    return add_or_del_friend(token, friend_username, True)
+
+
+def del_friend(token, friend_username):
+    return add_or_del_friend(token, friend_username, False)
 
 
 def test_login_logout():
@@ -114,3 +146,12 @@ def test_usermod_change_password():
     with Session(user['username'], old_password) as session:
         assert session.token
 
+
+def test_add_del_friend():
+    user1 = users[0]
+    user2 = users[1]
+    with Session(user1['username'], user1['password']) as session:
+        assert add_friend(session.token, user2['username'])
+        assert not add_friend(session.token, user2['username'])
+        assert del_friend(session.token, user2['username'])
+        assert not del_friend(session.token, user2['username'])
