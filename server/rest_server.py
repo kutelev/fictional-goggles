@@ -5,6 +5,7 @@ from hashlib import md5
 from uuid import uuid4
 from bottle import route, request, response, run
 from pymongo import MongoClient
+from datetime import datetime
 
 utf8reader = codecs.getreader('utf8')
 
@@ -37,6 +38,9 @@ def restapi_login():
         user = cursor[0]
         if user['password'] != md5(password.encode()).hexdigest():
             return failed_response
+
+        user['last_login'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+        users_db.posts.update_one({'_id': user['_id']}, {"$set": user}, upsert=False)
 
         response.headers['Content-Type'] = 'application/json'
         auth_token = str(uuid4())
@@ -78,14 +82,17 @@ def restapi_login():
         if 'token' not in data:
             return failed_response
 
+        dump_only = True if len(data) == 1 else False
+
         token = data.pop('token')
         data.pop('_id', None)
         data.pop('username', None)
+        data.pop('last_login', None)
 
         if 'password' in data:
             data['password'] = md5(data['password'].encode()).hexdigest()
 
-        if not data or token not in authenticated_users:
+        if (not data and not dump_only) or (token not in authenticated_users):
             return failed_response
 
         username = authenticated_users[token]
@@ -103,9 +110,13 @@ def restapi_login():
 
         users_db.posts.update_one({'_id': user['_id']}, {"$set": user}, upsert=False)
 
+        user.pop('_id', None)
+        user.pop('password', None)
+
+        for key, value in user.items():
+            ok_response[key] = value
+
         response.headers['Content-Type'] = 'application/json'
-        auth_token = str(uuid4())
-        ok_response['token'] = auth_token
         return ok_response
 
 
