@@ -122,6 +122,21 @@ def test_login_multiple_logins():
         assert logout(token)
 
 
+def test_login_session_count_limit():
+    user = users[0]
+    tokens1 = set()
+    tokens2 = set()
+    for _ in range(128):
+        tokens1.add(login(user['username'], user['password']))
+    assert len(tokens1) == 128
+    for _ in range(128):
+        tokens2.add(login(user['username'], user['password']))
+    for token in tokens1:
+        assert not logout(token)
+    for token in tokens2:
+        assert logout(token)
+
+
 def test_login_last_login():
     user = users[0]
     dates = set()

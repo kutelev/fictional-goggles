@@ -6,6 +6,7 @@ from uuid import uuid4
 from bottle import route, request, response, run
 from pymongo import MongoClient
 from datetime import datetime
+from threading import RLock
 from initdb import initdb
 
 utf8reader = codecs.getreader('utf8')
@@ -15,7 +16,46 @@ users_db = mongo_client.users.posts
 friends_db = mongo_client.friends.posts
 messages_db = mongo_client.messages.posts
 
-authenticated_users = dict()
+
+class ActiveSessions:
+    def __init__(self):
+        self.mutex = RLock()
+        self.sessions = dict()
+        self.user_sessions = dict()
+
+    def register_new_session(self, token, username):
+        with self.mutex:
+            self.sessions[token] = username
+            if username not in self.user_sessions:
+                self.user_sessions[username] = []
+            self.user_sessions[username].append(token)
+            if len(self.user_sessions[username]) > 128:
+                self.sessions.pop(self.user_sessions[username][0])
+                self.user_sessions[username] = self.user_sessions[username][1::]
+            pass
+
+    def unregister_session(self, token):
+        with self.mutex:
+            username = self.sessions.pop(token, None)
+            if username is not None:
+                index = self.user_sessions[username].index(token)
+                del self.user_sessions[username][index]
+
+    def is_session_alive(self, token):
+        with self.mutex:
+            return True if token in self.sessions else False
+
+    def get_username(self, token):
+        return self.sessions[token]
+
+    def lock(self):
+        self.mutex.acquire()
+
+    def unlock(self):
+        self.mutex.release()
+
+
+active_sessions = ActiveSessions()
 
 failed_response = {'status': 'failed'}
 failed_response = json.dumps(failed_response)
@@ -63,7 +103,7 @@ def restapi_login():
 
         response.headers['Content-Type'] = 'application/json'
         auth_token = str(uuid4())
-        authenticated_users[auth_token] = username
+        active_sessions.register_new_session(auth_token, username)
         ok_response['token'] = auth_token
         return ok_response
 
@@ -81,10 +121,13 @@ def restapi_logout():
 
         token = data.pop('token')
 
-        if token not in authenticated_users:
+        active_sessions.lock()
+        if not active_sessions.is_session_alive(token):
+            active_sessions.unlock()
             return failed_response
 
-        authenticated_users.pop(token)
+        active_sessions.unregister_session(token)
+        active_sessions.unlock()
 
         response.headers['Content-Type'] = 'application/json'
         return ok_response
@@ -103,7 +146,7 @@ def restapi_checkauth():
 
         token = data.pop('token')
 
-        if token not in authenticated_users:
+        if not active_sessions.is_session_alive(token):
             return failed_response
 
         response.headers['Content-Type'] = 'application/json'
@@ -131,10 +174,13 @@ def restapi_usermod():
         if 'password' in data:
             data['password'] = md5(data['password'].encode()).hexdigest()
 
-        if (not data and not dump_only) or (token not in authenticated_users):
+        active_sessions.lock()
+        if (not data and not dump_only) or (not active_sessions.is_session_alive(token)):
+            active_sessions.unlock()
             return failed_response
 
-        username = authenticated_users[token]
+        username = active_sessions.get_username(token)
+        active_sessions.unlock()
 
         cursor = users_db.find({'username': username})
         if cursor.count() != 1:
@@ -172,10 +218,14 @@ def restapi_addfriend():
 
         token = data['token']
 
-        if token not in authenticated_users:
+        active_sessions.lock()
+        if not active_sessions.is_session_alive(token):
+            active_sessions.unlock()
             return failed_response
 
-        username = authenticated_users[token]
+        username = active_sessions.get_username(token)
+        active_sessions.unlock()
+
         friend_username = data['friend_username']
 
         if username == friend_username:
@@ -208,10 +258,14 @@ def restapi_delfriend():
 
         token = data['token']
 
-        if token not in authenticated_users:
+        active_sessions.lock()
+        if not active_sessions.is_session_alive(token):
+            active_sessions.unlock()
             return failed_response
 
-        username = authenticated_users[token]
+        username = active_sessions.get_username(token)
+        active_sessions.unlock()
+
         friend_username = data['friend_username']
 
         cursor = users_db.find({'username': friend_username})
@@ -242,10 +296,14 @@ def restapi_sendmsg():
 
         token = data['token']
 
-        if token not in authenticated_users:
+        active_sessions.lock()
+        if not active_sessions.is_session_alive(token):
+            active_sessions.unlock()
             return failed_response
 
-        username = authenticated_users[token]
+        username = active_sessions.get_username(token)
+        active_sessions.unlock()
+
         recipient_username = data['recipient']
         content = data['content']
 

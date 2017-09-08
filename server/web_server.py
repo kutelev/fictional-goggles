@@ -6,7 +6,7 @@ cookie_secret = 'nboitCJ05G3y80QU'
 
 login_form_template = \
     SimpleTemplate('<html><head><title>Login page</title>'
-                   '<style>table { margin-left: auto; margin-right: auto; }</style>'
+                   '<style>table { margin-left: auto; margin-right: auto; } body { text-align: center; }</style>'
                    '</head><body>{{message}}'
                    '<form action="/login" method="post"><table>'
                    '<tr><td>Username:</td><td><input name="username" type="text" /></td></tr>'
