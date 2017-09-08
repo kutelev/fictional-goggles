@@ -90,6 +90,26 @@ def restapi_logout():
         return ok_response
 
 
+@route('/restapi/checkauth', method=['GET', 'PUT'])
+def restapi_checkauth():
+    if request.method == 'GET':
+        return 'Not documented yet.'
+    elif request.method == 'PUT':
+        ok_response = {'status': 'ok'}
+
+        data = json.load(utf8reader(request.body))
+        if 'token' not in data:
+            return failed_response
+
+        token = data.pop('token')
+
+        if token not in authenticated_users:
+            return failed_response
+
+        response.headers['Content-Type'] = 'application/json'
+        return ok_response
+
+
 @route('/restapi/usermod', method=['GET', 'PUT'])
 def restapi_usermod():
     if request.method == 'GET':
