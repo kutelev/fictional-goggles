@@ -328,7 +328,8 @@ def restapi_sendmsg():
         message = {'from': username,
                    'to': recipient_username,
                    'content': content,
-                   'datetime': cur_datetime()}
+                   'datetime': cur_datetime(),
+                   'read': False}
 
         messages_db.insert_one(message)
         return ok_response

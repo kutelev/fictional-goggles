@@ -3,12 +3,16 @@ from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
 from pprint import pprint
 from time import sleep
+from random import choice
 
 mongo_client = MongoClient()
 users_db = mongo_client.users.posts
 friends_db = mongo_client.friends.posts
 messages_db = mongo_client.messages.posts
 
+first_names = ['Vasiliy', 'Anatoly', 'Alexandr', 'Alexey', 'Pert', 'Vladimir', 'Ilya', 'Innokentiy']
+last_names = ['Ivanov', 'Sidorov', 'Petrov', 'Maksimov', 'Kozlov', 'Popov']
+hobbies = ['Screaming', 'Yelling', 'Dancing', 'Drilling', 'Singing', 'Swimming', 'Flying']
 
 while True:
     try:
@@ -23,7 +27,9 @@ def user(i):
     return {'username': 'user{}'.format(i),
             'password': default_password,
             'email': 'user{}@users.com'.format(i),
-            'last_login': 'never'}
+            'last_login': 'never',
+            'real_name': '{} {}'.format(choice(first_names), choice(last_names)),
+            'hobby': choice(hobbies)}
 
 
 default_password = md5('1234'.encode()).hexdigest()
