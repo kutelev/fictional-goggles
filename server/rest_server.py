@@ -352,8 +352,13 @@ def restapi_msgmod():
         message_id = data['message_id']
         action = data['action']
 
+        active_sessions.lock()
         if not active_sessions.is_session_alive(token):
+            active_sessions.unlock()
             return failed_response
+
+        username = active_sessions.get_username(token)
+        active_sessions.unlock()
 
         if action not in ('mark_as_read', 'mark_as_unread'):
             return failed_response
@@ -372,6 +377,13 @@ def restapi_msgmod():
 
         if action in ('mark_as_read', 'mark_as_unread'):
             message['read'] = True if action == 'mark_as_read' else False
+
+        cursor = messages_db.find({'_id':  ObjectId(message_id)})
+        if cursor.count() != 1:
+            return failed_response
+
+        if cursor[0]['to'] != username:
+            return failed_response
 
         messages_db.update_one({'_id':  ObjectId(message_id)}, {"$set": message}, upsert=False)
 
