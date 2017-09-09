@@ -95,6 +95,7 @@ def restapi_login():
         if cursor.count() != 1:
             return failed_response
         user = cursor[0]
+        # Not safe at all, but still better than raw passwords
         if user['password'] != md5(password.encode()).hexdigest():
             return failed_response
 
@@ -172,6 +173,7 @@ def restapi_usermod():
         data.pop('last_login', None)
 
         if 'password' in data:
+            # Not safe at all, but still better than raw passwords
             data['password'] = md5(data['password'].encode()).hexdigest()
 
         active_sessions.lock()
