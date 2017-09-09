@@ -122,8 +122,11 @@ def profile_page():
 
 
 @route('/users', method=['GET', 'POST'])
+@route('/friends', method=['GET', 'POST'])
 @redirect_to_login_page
 def users_page():
+    sub_page = request.url.split('/')[-1].split('?')[0]
+
     token = request.get_cookie('token', secret=cookie_secret)
 
     rest_response = requests.put('http://localhost:8081/restapi/usermod', json={'token': token}).json()
@@ -151,12 +154,12 @@ def users_page():
     else:
         message = ''
 
-    rest_response = requests.put('http://localhost:8081/restapi/users', json={'token': token}).json()
+    rest_response = requests.put('http://localhost:8081/restapi/{}'.format(sub_page), json={'token': token}).json()
 
     if rest_response['status'] == 'ok':
         users_table = '<center>{}</center><table><tr><th>Username</th><th>Status</th><th>Action</th></tr>{}</table>'
         rows = []
-        users = rest_response['users']
+        users = rest_response[sub_page]
         row = '<tr><td>{}</td><td>{}</td><td>{}</td></tr>'
         for user in users:
             if user['username'] == username:
@@ -164,18 +167,21 @@ def users_page():
                 action = ''
             elif user['is_friend'] in (1, 2):
                 status = 'Semi-friend' if user['is_friend'] == 1 else 'Friend'
-                action = '<form action="/users" method="post">' \
+                action = '<form action="" method="post">' \
                          '<input name="delfriend" value="{}" type="hidden" />' \
                          '<input name="submit" type="submit" value="Remove from friends" />' \
                          '</form>'.format(user['username'])
             else:
                 status = ''
-                action = '<form action="/users" method="post">' \
+                action = '<form action="" method="post">' \
                          '<input name="addfriend" value="{}" type="hidden" />' \
                          '<input name="submit" type="submit" value="Add to friends" />' \
                          '</form>'.format(user['username'])
             rows.append(row.format(user['username'], status, action))
-        users_table = users_table.format(message, ''.join(rows))
+        if sub_page == 'friends' and not rows:
+            users_table = '<center>{}</center><center>You have no friends.</center>'.format(message)
+        else:
+            users_table = users_table.format(message, ''.join(rows))
     else:
         users_table = '<center>Could not retrieve users list from the server. Please, try to logout and then login.</center>'
 

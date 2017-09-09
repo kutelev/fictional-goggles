@@ -398,10 +398,10 @@ def restapi_friends():
         friends = []
         for user in cursor:
             is_friend = 1
-            user_pair = {'username': user['username'], 'friend_username': username}
+            user_pair = {'username': user['friend_username'], 'friend_username': username}
             if friends_db.find(user_pair).count() == 1:
                 is_friend = 2  # Complete friend
-            friends.append({'username': user['username'], 'is_friend': is_friend})
+            friends.append({'username': user['friend_username'], 'is_friend': is_friend})
 
         ok_response['friends'] = friends
 
