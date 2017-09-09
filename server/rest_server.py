@@ -81,7 +81,7 @@ def restapi_resetdb():
 def restapi_login():
     if request.method == 'GET':
         return 'Not documented yet.'
-    elif request.method == 'PUT':
+    else:
         ok_response = {'status': 'ok'}
 
         data = json.load(utf8reader(request.body))
@@ -113,7 +113,7 @@ def restapi_login():
 def restapi_logout():
     if request.method == 'GET':
         return 'Not documented yet.'
-    elif request.method == 'PUT':
+    else:
         ok_response = {'status': 'ok'}
 
         data = json.load(utf8reader(request.body))
@@ -138,7 +138,7 @@ def restapi_logout():
 def restapi_checkauth():
     if request.method == 'GET':
         return 'Not documented yet.'
-    elif request.method == 'PUT':
+    else:
         ok_response = {'status': 'ok'}
 
         data = json.load(utf8reader(request.body))
@@ -158,7 +158,7 @@ def restapi_checkauth():
 def restapi_usermod():
     if request.method == 'GET':
         return 'Not documented yet.'
-    elif request.method == 'PUT':
+    else:
         ok_response = {'status': 'ok'}
 
         data = json.load(utf8reader(request.body))
@@ -211,7 +211,7 @@ def restapi_usermod():
 def restapi_addfriend():
     if request.method == 'GET':
         return 'Not documented yet.'
-    elif request.method == 'PUT':
+    else:
         ok_response = {'status': 'ok'}
 
         data = json.load(utf8reader(request.body))
@@ -251,7 +251,7 @@ def restapi_addfriend():
 def restapi_delfriend():
     if request.method == 'GET':
         return 'Not documented yet.'
-    elif request.method == 'PUT':
+    else:
         ok_response = {'status': 'ok'}
 
         data = json.load(utf8reader(request.body))
@@ -288,7 +288,7 @@ def restapi_delfriend():
 def restapi_sendmsg():
     if request.method == 'GET':
         return 'Not documented yet.'
-    elif request.method == 'PUT':
+    else:
         ok_response = {'status': 'ok'}
 
         data = json.load(utf8reader(request.body))
@@ -320,8 +320,8 @@ def restapi_sendmsg():
             return failed_response
 
         for username1, username2 in ((username, recipient_username), (recipient_username, username)):
-            friends = {'username': username1, 'friend_username': username2}
-            cursor = friends_db.find(friends)
+            user_pair = {'username': username1, 'friend_username': username2}
+            cursor = friends_db.find(user_pair)
             if cursor.count() != 1:
                 return failed_response
 
@@ -331,6 +331,79 @@ def restapi_sendmsg():
                    'datetime': cur_datetime()}
 
         messages_db.insert_one(message)
+        return ok_response
+
+
+@route('/restapi/users', method=['GET', 'PUT'])
+def restapi_users():
+    if request.method == 'GET':
+        return 'Not documented yet.'
+    else:
+        ok_response = {'status': 'ok'}
+
+        data = json.load(utf8reader(request.body))
+        if 'token' not in data:
+            return failed_response
+
+        token = data.pop('token')
+
+        active_sessions.lock()
+        if not active_sessions.is_session_alive(token):
+            active_sessions.unlock()
+            return failed_response
+
+        username = active_sessions.get_username(token)
+        active_sessions.unlock()
+
+        cursor = users_db.find({})
+        users = []
+        for user in cursor:
+            is_friend = 0
+            user_pair = {'username': username, 'friend_username': user['username']}
+            if friends_db.find(user_pair).count() == 1:
+                is_friend = 1  # Semi-friend
+                user_pair = {'username': user['username'], 'friend_username': username}
+                if friends_db.find(user_pair).count() == 1:
+                    is_friend = 2  # Complete friend
+            users.append({'username': user['username'], 'is_friend': is_friend})
+
+        ok_response['users'] = users
+
+        return ok_response
+
+
+@route('/restapi/friends', method=['GET', 'PUT'])
+def restapi_friends():
+    if request.method == 'GET':
+        return 'Not documented yet.'
+    else:
+        ok_response = {'status': 'ok'}
+
+        data = json.load(utf8reader(request.body))
+        if 'token' not in data:
+            return failed_response
+
+        token = data.pop('token')
+
+        active_sessions.lock()
+        if not active_sessions.is_session_alive(token):
+            active_sessions.unlock()
+            return failed_response
+
+        username = active_sessions.get_username(token)
+        active_sessions.unlock()
+
+        cursor = friends_db.find({'username': username})
+        friends = []
+        for user in cursor:
+            is_friend = 1
+            user_pair = {'username': user['username'], 'friend_username': username}
+            if friends_db.find(user_pair).count() == 1:
+                is_friend = 2  # Complete friend
+            friends.append({'username': user['username'], 'is_friend': is_friend})
+
+        ok_response['friends'] = friends
+
         return ok_response
 
 
