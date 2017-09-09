@@ -27,6 +27,8 @@ main_page_template = \
                    '<a href="/profile">Profile</a>'
                    '<a href="/users">Users</a>'
                    '<a href="/friends">Friends</a>'
+                   '<a href="/inbox">Inbox (Unread)</a>'
+                   '<a href="/inbox?include_read=1">Inbox (All)</a>'
                    '<a href="/logout">Logout</a>'
                    '</div>'
                    '{{!body}}</body></html>')
@@ -151,6 +153,8 @@ def users_page():
                     message = 'User {} has been successfully removed from your friends.'.format(friend_username)
             else:
                 message = 'Operation failed. Please, try to logout and then login.'
+        else:
+            message = ''
     else:
         message = ''
 
@@ -186,6 +190,61 @@ def users_page():
         users_table = '<center>Could not retrieve users list from the server. Please, try to logout and then login.</center>'
 
     return main_page_template.render(sub_page_name='Users', body=users_table)
+
+
+@route('/inbox', method=['GET', 'POST'])
+@redirect_to_login_page
+def inbox_page():
+    token = request.get_cookie('token', secret=cookie_secret)
+
+    if request.method == 'POST':
+        if request.forms.get('mark_as_read') or request.forms.get('mark_as_unread'):
+            action = 'mark_as_read' if request.forms.get('mark_as_read') else 'mark_as_unread'
+            message_id = request.forms.get(action)
+            rest_request = {'token': token, 'message_id': message_id, 'action': action}
+            rest_response = requests.put('http://localhost:8081/restapi/msgmod', json=rest_request).json()
+            if rest_response['status'] == 'ok':
+                info_message = 'Message has been successfully marked as {}.'.format(
+                    'read' if action == 'mark_as_read' else 'unread')
+            else:
+                info_message = 'Operation failed. Please, try to logout and then login.'
+        else:
+            info_message = ''
+    else:
+        info_message = ''
+
+    include_read = request.query.include_read
+    include_read = True if include_read == '1' else False
+
+    rest_request = {'token': token, 'include_read': include_read}
+    rest_response = requests.put('http://localhost:8081/restapi/messages', json=rest_request).json()
+
+    if rest_response['status'] == 'ok':
+        messages_table = '<center>{}</center><table>{}</table>'
+        rows = []
+        messages = rest_response['messages']
+        row = '<tr><td>From:</td><td>{}</td></tr>' \
+              '<tr><td>Date:</td><td>{}</td></tr>' \
+              '<tr><td>Action:</td><td>{}</td></tr>' \
+              '<tr><td colspan="2">Content:</td></tr>' \
+              '<tr><td colspan="2">{}</td></tr>'
+        for message in messages:
+            is_read = message['read']
+            action = '<form action="" method="post">' \
+                     '<input name="{}" value="{}" type="hidden" />' \
+                     '<input name="submit" type="submit" value="{}" />' \
+                     '</form>'.format('mark_as_unread' if is_read else 'mark_as_read',
+                                      message['_id'],
+                                      'Mark as unread' if is_read else 'Mark as read')
+            rows.append(row.format(message['from'], message['datetime'], action, message['content']))
+        if not rows:
+            messages_table = '<center>{}</center><center>You have no messages.</center>'.format(info_message)
+        else:
+            messages_table = messages_table.format(info_message, ''.join(rows))
+    else:
+        messages_table = '<center>Could not retrieve messages from the server. Please, try to logout and then login.</center>'
+
+    return main_page_template.render(sub_page_name='Inbox', body=messages_table)
 
 
 @route('/login', method=['GET', 'POST'])

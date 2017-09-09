@@ -5,6 +5,7 @@ from hashlib import md5
 from uuid import uuid4
 from bottle import route, request, response, run
 from pymongo import MongoClient
+from bson.objectid import ObjectId
 from datetime import datetime
 from threading import RLock
 from initdb import initdb
@@ -335,6 +336,48 @@ def restapi_sendmsg():
         return ok_response
 
 
+@route('/restapi/msgmod', method=['GET', 'PUT'])
+def restapi_msgmod():
+    if request.method == 'GET':
+        return 'Not documented yet.'
+    else:
+        ok_response = {'status': 'ok'}
+
+        data = json.load(utf8reader(request.body))
+
+        if {'token', 'message_id', 'action'} - set(data.keys()):
+            return failed_response
+
+        token = data['token']
+        message_id = data['message_id']
+        action = data['action']
+
+        if not active_sessions.is_session_alive(token):
+            return failed_response
+
+        if action not in ('mark_as_read', 'mark_as_unread'):
+            return failed_response
+
+        cursor = messages_db.find({'_id': ObjectId(message_id)})
+        if cursor.count() != 1:
+            return failed_response
+
+        message = cursor[0]
+
+        if action == 'mark_as_read' and message['read']:
+            return failed_response
+
+        if action == 'mark_as_unread' and not message['read']:
+            return failed_response
+
+        if action in ('mark_as_read', 'mark_as_unread'):
+            message['read'] = True if action == 'mark_as_read' else False
+
+        messages_db.update_one({'_id':  ObjectId(message_id)}, {"$set": message}, upsert=False)
+
+        return ok_response
+
+
 @route('/restapi/users', method=['GET', 'PUT'])
 def restapi_users():
     if request.method == 'GET':
@@ -404,6 +447,42 @@ def restapi_friends():
             friends.append({'username': user['friend_username'], 'is_friend': is_friend})
 
         ok_response['friends'] = friends
+
+        return ok_response
+
+
+@route('/restapi/messages', method=['GET', 'PUT'])
+def restapi_messages():
+    if request.method == 'GET':
+        return 'Not documented yet.'
+    else:
+        ok_response = {'status': 'ok'}
+
+        data = json.load(utf8reader(request.body))
+        if 'token' not in data:
+            return failed_response
+
+        token = data.pop('token')
+        include_read = data.pop('include_read', False)
+
+        active_sessions.lock()
+        if not active_sessions.is_session_alive(token):
+            active_sessions.unlock()
+            return failed_response
+
+        username = active_sessions.get_username(token)
+        active_sessions.unlock()
+
+        cursor = messages_db.find({'to': username})
+        messages = []
+        for message in cursor:
+            if not include_read and message['read']:
+                continue
+            message['_id'] = str(message['_id'])
+            message.pop('to')
+            messages.append(message)
+
+        ok_response['messages'] = messages
 
         return ok_response
 
