@@ -476,6 +476,11 @@ def restapi_messages():
 
         token = data.pop('token')
         include_read = data.pop('include_read', False)
+        include_received = data.pop('include_received', True)
+        include_sent = data.pop('include_sent', False)
+
+        if not include_received and not include_sent:
+            return failed_response
 
         active_sessions.lock()
         if not active_sessions.is_session_alive(token):
@@ -485,14 +490,22 @@ def restapi_messages():
         username = active_sessions.get_username(token)
         active_sessions.unlock()
 
-        cursor = messages_db.find({'to': username})
         messages = []
-        for message in cursor:
-            if not include_read and message['read']:
-                continue
-            message['_id'] = str(message['_id'])
-            message.pop('to')
-            messages.append(message)
+
+        if include_received:
+            cursor = messages_db.find({'to': username})
+            for message in cursor:
+                if not include_read and message['read']:
+                    continue
+                message['_id'] = str(message['_id'])
+                messages.append(message)
+
+        if include_sent:
+            cursor = messages_db.find({'from': username})
+            for message in cursor:
+                message.pop('_id')
+                message.pop('read')
+                messages.append(message)
 
         ok_response['messages'] = messages
 

@@ -218,9 +218,6 @@ def test_sendmsg():
             for message in messages:
                 assert message['content'] == 'message'
 
-    import os
-    os._exit(-1)
-
 
 def test_users():
     cur_user = known_users[0]
