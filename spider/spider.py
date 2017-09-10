@@ -1,6 +1,8 @@
 import requests
 import pytest
 import itertools
+import argparse
+import sys
 
 from time import sleep
 from os import getenv
@@ -108,6 +110,10 @@ class Session:
     @property
     def messages(self):
         return send_request('messages', {'token': self.token}, FULL_RESPONSE_OR_NONE)
+
+    @property
+    def stat(self):
+        return send_request('stat', {'token': self.token}, FULL_RESPONSE_OR_NONE)
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -336,3 +342,78 @@ def test_concurrent_sessions():
         with Session(user['username'], user['password']) as session:
             messages = session.messages['messages']
             assert len(messages) == 400
+
+
+def exit_failed(message):
+    print(message)
+    sys.exit(1)
+
+
+def process_command(args, username, password):
+    if args.command == 'register':
+        if register({'username': username, 'password': password}):
+            print('User "{}" has been successfully registered.'.format(username))
+        else:
+            exit_failed('Failed to register a new user.')
+        return
+
+    with Session(username, password) as session:
+        if args.command == 'addfriend':
+            if session.add_friend(args.friend_username):
+                print('User "{}" has been added to friends.'.format(args.friend_username))
+            else:
+                exit_failed('Failed to add user "{}" to friends.'.format(args.friend_username))
+        elif args.command == 'delfriend':
+            if session.del_friend(args.friend_username):
+                print('User "{}" has been delete from friends.'.format(args.friend_username))
+            else:
+                exit_failed('Failed to delete user "{}" from friends.'.format(args.friend_username))
+        elif args.command == 'sendmsg':
+            if session.sendmsg(args.recipient, args.content):
+                print('Message has been successfully sent to "{}".'.format(args.recipient))
+            else:
+                exit_failed('Failed to send a message to "{}"'.format(args.recipient))
+        elif args.command == 'messages':
+            for message in session.messages['messages']:
+                print('| {from: <10} | {to: <10} | {datetime: <23} | {content}'.format(**message))
+        elif args.command == 'stat':
+            template = '{username: <10} | {last_login: <23} | {login_count: <3} | ' \
+                       '{friend_count: <3}| {messages_unread: <3}'
+            if args.extra:
+                template += ' | {messages_received: <3} | {messages_sent: <3}'
+            print(template.format(username=username, login_count='?', **session.stat))
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Fictional goggles spider.')
+    parser.add_argument('--command', type=str, required=True,
+                        choices=['register', 'addfriend', 'delfriend', 'sendmsg', 'messages', 'stat'],
+                        help='command to perform')
+    parser.add_argument('--username', action='append', type=str, required=True)
+    parser.add_argument('--password', action='append', type=str, required=True)
+    parser.add_argument('--friend_username', type=str,
+                        help='username to add/delete to/from friends, '
+                             'required when command "addfriend" or "delfriend" is used')
+    parser.add_argument('--recipient', type=str,
+                        help='recipient username, required when command "sendmsg" is used')
+    parser.add_argument('--content', type=str,
+                        help='message content to send, required when command "sendmsg" is used')
+    parser.add_argument('--extra', action='store_true',
+                        help='dump extra information, can be used with the "stat" command')
+
+    args = parser.parse_args()
+
+    if len(args.username) != len(args.password):
+        exit_failed('You must pass the same count of the "username" and "password" arguments.')
+
+    if args.command in ('addfriend', 'delfriend') and args.friend_username is None:
+        exit_failed('Missing required argument --friend_username.')
+
+    if args.command == 'sendmsg' and (args.recipient is None or args.content is None):
+        exit_failed('Missing required argument --recipient or --content.')
+
+    if args.command == 'messages':
+        print('| {: <10} | {: <10} | {: <23} | {}'.format('From', 'To', 'Date', 'Content'))
+
+    for username, password in zip(args.username, args.password):
+        process_command(args, username, password)
