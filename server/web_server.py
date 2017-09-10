@@ -4,10 +4,20 @@ from bottle import route, request, response, redirect, run, SimpleTemplate
 
 cookie_secret = 'nboitCJ05G3y80QU'
 
+register_form_template = \
+    SimpleTemplate('<html><head><title>Fictional goggles : Login page</title>'
+                   '<style>table { margin-left: auto; margin-right: auto; } body { text-align: center; }</style>'
+                   '</head><body><a href="/login">Login page</a><br/>{{message}}'
+                   '<form action="/register" method="post"><table>'
+                   '<tr><td>Username:</td><td><input name="username" type="text" /></td></tr>'
+                   '<tr><td>Password:</td><td><input name="password" type="password" /></td></tr>'
+                   '<tr><td colspan="2" style="text-align: center;"><input value="Register" type="submit" /></td></tr>'
+                   '</table></form></body></html>')
+
 login_form_template = \
     SimpleTemplate('<html><head><title>Fictional goggles : Login page</title>'
                    '<style>table { margin-left: auto; margin-right: auto; } body { text-align: center; }</style>'
-                   '</head><body>{{message}}'
+                   '</head><body><a href="/register">Create a new account</a><br/>{{message}}'
                    '<form action="/login" method="post"><table>'
                    '<tr><td>Username:</td><td><input name="username" type="text" /></td></tr>'
                    '<tr><td>Password:</td><td><input name="password" type="password" /></td></tr>'
@@ -281,7 +291,6 @@ def sent_page():
         else:
             return '<input name="recipient" value="You have no friends." type="text" readonly />'
 
-
     token = request.get_cookie('token', secret=cookie_secret)
 
     if request.method == 'POST':
@@ -303,9 +312,7 @@ def sent_page():
     include_read = request.query.include_read
     include_read = True if include_read == '1' else False
 
-    rest_request = {'token': token, 'include_read': include_read}
-    rest_request['include_received'] = False
-    rest_request['include_sent'] = True
+    rest_request = {'token': token, 'include_read': include_read, 'include_received': False, 'include_sent': True}
     rest_response = requests.put('http://localhost:8081/restapi/messages', json=rest_request).json()
 
     if rest_response['status'] == 'ok':
@@ -314,7 +321,8 @@ def sent_page():
                          '<td>{}</td></tr>' \
                          '<tr><td colspan="2">Content:</td></tr>' \
                          '<tr><td colspan="2"><textarea name="content" rows="10">{}</textarea></td></tr>' \
-                         '<tr><td colspan="2" style="text-align: center;"><input value="Send" type="submit" /></td></tr>' \
+                         '<tr><td colspan="2" style="text-align: center;">' \
+                         '<input value="Send" type="submit" /></td></tr>' \
                          '</table></form>{}'
 
         rows = []
@@ -339,6 +347,41 @@ def sent_page():
                          'Please, try to logout and then login.</center>'
 
     return main_page_template.render(sub_page_name='Sent', body=messages_table)
+
+
+@route('/register', method=['GET', 'POST'])
+def register_page():
+    if request.method == 'GET':
+        token = request.get_cookie('token', secret=cookie_secret)
+        if is_authenticated(token):
+            redirect('/')
+        return register_form_template.render(message='')
+    else:
+        username = request.forms.get('username')
+        password = request.forms.get('password')
+
+        rest_response = requests.put('http://localhost:8081/restapi/register',
+                                     json={'username': username, 'password': password})
+
+        rest_response = rest_response.json()
+
+        if rest_response['status'] == 'ok':
+            rest_response = requests.put('http://localhost:8081/restapi/login',
+                                         json={'username': username, 'password': password})
+
+            rest_response = rest_response.json()
+
+            if rest_response['status'] == 'ok':
+                auth_token = rest_response['token']
+                response.set_cookie('token', auth_token, secret=cookie_secret)
+                redirect('/profile')
+                return
+
+            redirect('/login')
+            return
+
+        return register_form_template.render(message='Could not create a new account for you. '
+                                                     'Please try again.')
 
 
 @route('/login', method=['GET', 'POST'])

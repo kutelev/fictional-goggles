@@ -1,5 +1,6 @@
 import codecs
 import json
+import re
 
 from hashlib import md5
 from uuid import uuid4
@@ -8,7 +9,6 @@ from pymongo import MongoClient, DESCENDING
 from bson.objectid import ObjectId
 from datetime import datetime
 from threading import RLock
-from initdb import initdb
 
 utf8reader = codecs.getreader('utf8')
 
@@ -74,8 +74,64 @@ def restapi_resetdb():
     if 'magic_key' not in data or data['magic_key'] != 'c4f1571a-9450-11e7-a0a6-0b95339866a9':
         return failed_response
 
-    initdb()
+    users_db.delete_many({})
+    friends_db.delete_many({})
+    messages_db.delete_many({})
+
     return ok_response
+
+
+@route('/restapi', method=['GET'])
+def restapi():
+    return 'Not documented yet.'
+
+
+@route('/restapi/register', method=['GET', 'PUT'])
+def restapi_login():
+    if request.method == 'GET':
+        return 'Not documented yet.'
+    else:
+        ok_response = {'status': 'ok'}
+
+        data = json.load(utf8reader(request.body))
+
+        if {'username', 'password'} - set(data.keys()):
+            return failed_response
+
+        known_fields = {'username', 'password', 'email', 'real_name', 'hobby'}
+
+        if set(data.keys()) - known_fields:
+            return failed_response
+
+        user = {key: '' for key in known_fields}
+
+        for key, value in data.items():
+            user[key] = str(value)
+
+        # Not safe at all, but still better than raw passwords
+        user['password'] = md5(user['password'].encode()).hexdigest()
+        user['last_login'] = 'never'
+
+        for value in user['username'], user['password']:
+            if len(value) < 3 or len(value) > 64:
+                return failed_response
+
+            if re.match('^[a-zA-Z0-9_.-]+$', value) is None:
+                return failed_response
+
+        cursor = users_db.find({'username': user['username']})
+        if cursor.count() != 0:
+            return failed_response
+
+        user_id = users_db.insert_one(user)
+
+        cursor = users_db.find({'username': user['username']})
+        if cursor.count() != 1:
+            users_db.delete_one({'_id': user_id})
+            return failed_response
+
+        response.headers['Content-Type'] = 'application/json'
+        return ok_response
 
 
 @route('/restapi/login', method=['GET', 'PUT'])
