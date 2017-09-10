@@ -27,6 +27,7 @@ def user(i):
     return {'username': 'user{}'.format(i),
             'password': default_password,
             'email': 'user{}@users.com'.format(i),
+            'login_count': 0,
             'last_login': 'never',
             'real_name': '{} {}'.format(choice(first_names), choice(last_names)),
             'hobby': choice(hobbies)}

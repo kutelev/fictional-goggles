@@ -381,24 +381,24 @@ def process_command(args, username, password):
                        '{friend_count: <3}| {messages_unread: <3}'
             if args.extra:
                 template += ' | {messages_received: <3} | {messages_sent: <3}'
-            print(template.format(username=username, login_count='?', **session.stat))
+            print(template.format(username=username, **session.stat))
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Fictional goggles spider.')
-    parser.add_argument('--command', type=str, required=True,
+    parser.add_argument('-c', '--command', type=str, required=True,
                         choices=['register', 'addfriend', 'delfriend', 'sendmsg', 'messages', 'stat'],
                         help='command to perform')
-    parser.add_argument('--username', action='append', type=str, required=True)
-    parser.add_argument('--password', action='append', type=str, required=True)
-    parser.add_argument('--friend_username', type=str,
+    parser.add_argument('-u', '--username', action='append', type=str, required=True)
+    parser.add_argument('-p', '--password', action='append', type=str, required=True)
+    parser.add_argument('-f', '--friend_username', type=str,
                         help='username to add/delete to/from friends, '
                              'required when command "addfriend" or "delfriend" is used')
-    parser.add_argument('--recipient', type=str,
+    parser.add_argument('-r', '--recipient', type=str,
                         help='recipient username, required when command "sendmsg" is used')
-    parser.add_argument('--content', type=str,
+    parser.add_argument('-m', '--content', type=str,
                         help='message content to send, required when command "sendmsg" is used')
-    parser.add_argument('--extra', action='store_true',
+    parser.add_argument('-e', '--extra', action='store_true',
                         help='dump extra information, can be used with the "stat" command')
 
     args = parser.parse_args()

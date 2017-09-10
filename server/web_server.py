@@ -51,6 +51,7 @@ info_table_template = \
                    '<tr><th>Messages sent:</th><td>{{response["messages_sent"]}}</td></tr>'
                    '<tr><th>Friend count:</th><td>{{response["friend_count"]}}</td></tr>'
                    '<tr><th>Last login on:</th><td>{{response["last_login"]}}</td></tr>'
+                   '<tr><th>Login count:</th><td>{{response["login_count"]}}</td></tr>'
                    '</table>')
 
 profile_table_template = \

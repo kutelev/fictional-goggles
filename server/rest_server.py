@@ -125,6 +125,7 @@ def restapi_login():
         # Not safe at all, but still better than raw passwords
         user['password'] = md5(user['password'].encode()).hexdigest()
         user['last_login'] = 'never'
+        user['login_count'] = 0
 
         for value in user['username'], user['password']:
             if len(value) < 3 or len(value) > 64:
@@ -171,6 +172,7 @@ def restapi_login():
             return failed_response
 
         user['last_login'] = cur_datetime()
+        user['login_count'] = user['login_count'] + 1
         users_db.update_one({'_id': user['_id']}, {"$set": user}, upsert=False)
 
         response.headers['Content-Type'] = 'application/json'
@@ -242,6 +244,7 @@ def restapi_usermod():
         data.pop('_id', None)
         data.pop('username', None)
         data.pop('last_login', None)
+        data.pop('login_count', None)
 
         if 'password' in data:
             # Not safe at all, but still better than raw passwords
@@ -624,6 +627,7 @@ def restapi_stat():
         ok_response['messages_sent'] = messages_db.find({'from': username}).count()
         ok_response['friend_count'] = len(friends)
         ok_response['last_login'] = user['last_login']
+        ok_response['login_count'] = user['login_count']
 
         return ok_response
 
