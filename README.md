@@ -1,0 +1,1 @@
+[![pipeline status](https://gitlab.com/kutelev/fictional-goggles/badges/master/pipeline.svg)](https://gitlab.com/kutelev/fictional-goggles/commits/master)

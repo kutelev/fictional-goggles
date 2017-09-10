@@ -81,6 +81,20 @@ def restapi_resetdb():
     return ok_response
 
 
+# For testing purposes only
+@route('/restapi/shutdown', method='PUT')
+def restapi_shutdown():
+    ok_response = {'status': 'ok'}
+    data = json.load(utf8reader(request.body))
+    if 'magic_key' not in data or data['magic_key'] != '72a8f4e6-95e4-11e7-92f1-037910ef45f9':
+        return failed_response
+
+    import subprocess
+    subprocess.check_call(['nginx', '-s', 'quit'])
+
+    return ok_response
+
+
 @route('/restapi', method=['GET'])
 def restapi():
     return 'Not documented yet.'

@@ -1,0 +1,64 @@
+stages:
+  - pre-cleanup
+  - build
+  - run
+  - post-cleanup
+  - push
+
+pre-cleanup:
+  stage: pre-cleanup
+  script:
+  - docker ps -a -q | xargs -n1 -I{} --no-run-if-empty docker stop {}
+  - docker ps -a -q -f "status=exited" | xargs -n1 -I{} --no-run-if-empty docker rm {}
+  - docker images -q -f "dangling=true" | xargs -n1 -I{} --no-run-if-empty docker rmi {}
+  - docker volume ls -q -f "dangling=true" | xargs -n1 -I{} --no-run-if-empty docker volume rm
+  tags:
+  - fictional-goggles
+
+post-cleanup:
+  stage: post-cleanup
+  script:
+  - docker ps -a -q | xargs -n1 -I{} --no-run-if-empty docker stop {}
+  - docker ps -a -q -f "status=exited" | xargs -n1 -I{} --no-run-if-empty docker rm {}
+  - docker images -q -f "dangling=true" | xargs -n1 -I{} --no-run-if-empty docker rmi {}
+  - docker volume ls -q -f "dangling=true" | xargs -n1 -I{} --no-run-if-empty docker volume rm
+  tags:
+  - fictional-goggles
+
+build:
+  stage: build
+  script:
+  - cd server
+  - docker build -f Dockerfile -t fictional-goggles:server .
+  - docker build -f Dockerfile -t kutelev/fictional-goggles:server .
+  - cd ../spider
+  - docker build -f Dockerfile -t fictional-goggles:spider .
+  - docker build -f Dockerfile -t kutelev/fictional-goggles:spider .
+  tags:
+  - fictional-goggles
+
+run:server:
+  stage: run
+  script:
+  - docker run --rm -p 80:80 fictional-goggles:server
+  tags:
+  - fictional-goggles
+
+run:spider:
+  stage: run
+  script: |-
+    until $(curl --output /dev/null --silent --head --fail http://$(hostname -I | awk '{print $1}')); do printf '.'; sleep 1; done; echo
+    docker run --rm -e FRICTIONAL_GOGGLES_IP=$(hostname -I | awk '{print $1}') fictional-goggles:spider
+  after_script:
+  - |
+    curl -X PUT -d '{"magic_key": "72a8f4e6-95e4-11e7-92f1-037910ef45f9"}' $(hostname -I | awk '{print $1}')/restapi/shutdown; echo
+  tags:
+  - fictional-goggles
+
+push:push:
+  stage: push
+  script:
+  - docker push kutelev/fictional-goggles:server
+  - docker push kutelev/fictional-goggles:spider
+  tags:
+  - fictional-goggles
