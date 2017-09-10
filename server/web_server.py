@@ -257,7 +257,31 @@ def inbox_page():
 
 @route('/sent', method=['GET', 'POST'])
 @redirect_to_login_page
-def inbox_page():
+def sent_page():
+    def generate_friend_list(token, recipient):
+        rest_response = requests.put('http://localhost:8081/restapi/friends', json={'token': token}).json()
+
+        option = '<option value="{0}"{1}>{0}</option>'
+        select = '<select name="recipient">{}</select>'
+
+        if rest_response['status'] == 'ok':
+            friends = rest_response['friends']
+        else:
+            friends = []
+
+        options = []
+
+        for friend in friends:
+            if friend['is_friend'] != 2:
+                continue
+            options.append(option.format(friend['username'], ' selected' if friend['username'] == recipient else ''))
+
+        if options:
+            return select.format(''.join(options))
+        else:
+            return '<input name="recipient" value="You have no friends." type="text" readonly />'
+
+
     token = request.get_cookie('token', secret=cookie_secret)
 
     if request.method == 'POST':
@@ -287,7 +311,7 @@ def inbox_page():
     if rest_response['status'] == 'ok':
         messages_table = '<center>{}</center><form action="" method="post"><table>' \
                          '<tr><td>To:</td>' \
-                         '<td><input name="recipient" value="{}" type="text" /></td></tr>' \
+                         '<td>{}</td></tr>' \
                          '<tr><td colspan="2">Content:</td></tr>' \
                          '<tr><td colspan="2"><textarea name="content" rows="10">{}</textarea></td></tr>' \
                          '<tr><td colspan="2" style="text-align: center;"><input value="Send" type="submit" /></td></tr>' \
@@ -305,10 +329,10 @@ def inbox_page():
             rows.append(row.format(message['to'], message['datetime'], message['content']))
 
         if not rows:
-            messages_table = messages_table.format(info_message, recipient,
+            messages_table = messages_table.format(info_message, generate_friend_list(token, recipient),
                                                    content, '<center>You have not sent any messages.</center>')
         else:
-            messages_table = messages_table.format(info_message, recipient,
+            messages_table = messages_table.format(info_message, generate_friend_list(token, recipient),
                                                    content, '<table>{}</table>'.format(''.join(rows)))
     else:
         messages_table = '<center>Could not retrieve messages from the server. ' \
