@@ -5,7 +5,7 @@ import itertools
 from time import sleep
 from os import getenv
 from random import choice
-from hashlib import md5
+from multiprocessing import Pool
 
 hostname= getenv('FRICTIONAL_GOGGLES_IP', 'localhost:8081')
 restapi_base_url = 'http://{}/restapi'.format(hostname)
@@ -312,3 +312,27 @@ def test_friends():
                 assert friend['is_friend'] == 1
             if friend['username'] == complete_friend['username']:
                 assert friend['is_friend'] == 2
+
+
+def concurrent_session_routine(user):
+    with Session(user['username'], user['password']) as session:
+        friends = initial_users[:]
+        index = friends.index(user)
+        del friends[index]
+        for _ in range(10):
+            for friend in friends:
+                assert session.sendmsg(friend['username'], 'message')
+
+
+def test_concurrent_sessions():
+    for user1, user2 in itertools.permutations(initial_users, 2):
+        with Session(user1['username'], user1['password']) as session:
+            assert session.add_friend(user2['username'])
+
+    pool = Pool(8)
+    pool.map(concurrent_session_routine, initial_users * 10)
+
+    for user in initial_users:
+        with Session(user['username'], user['password']) as session:
+            messages = session.messages['messages']
+            assert len(messages) == 400
