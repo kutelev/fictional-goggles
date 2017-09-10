@@ -44,6 +44,15 @@ main_page_template = \
                    '</div>'
                    '{{!body}}</body></html>')
 
+info_table_template = \
+    SimpleTemplate('<table>'
+                   '<tr><th>Messages received (All / Unread):</th>'
+                   '<td>{{response["messages_received"]}} / {{response["messages_unread"]}}</td></tr>'
+                   '<tr><th>Messages sent:</th><td>{{response["messages_sent"]}}</td></tr>'
+                   '<tr><th>Friend count:</th><td>{{response["friend_count"]}}</td></tr>'
+                   '<tr><th>Last login on:</th><td>{{response["last_login"]}}</td></tr>'
+                   '</table>')
+
 profile_table_template = \
     SimpleTemplate('<center>{{message}}</center>'
                    '<form action="/profile" method="post"><table>'
@@ -82,7 +91,17 @@ def redirect_to_login_page(func):
 @route('/')
 @redirect_to_login_page
 def main_page():
-    return main_page_template.render(sub_page_name='Home', body='')
+    token = request.get_cookie('token', secret=cookie_secret)
+
+    rest_response = requests.put('http://localhost:8081/restapi/stat', json={'token': token}).json()
+
+    if rest_response['status'] == 'ok':
+        body = info_table_template.render(response=rest_response)
+    else:
+        body = '<center>Failed to retrieve information from the server. ' \
+               'Please, try to logout and then login.</center>'
+
+    return main_page_template.render(sub_page_name='Home', body=body)
 
 
 @route('/profile', method=['GET', 'POST'])

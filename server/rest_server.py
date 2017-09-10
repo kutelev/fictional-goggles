@@ -582,4 +582,50 @@ def restapi_messages():
         return ok_response
 
 
+@route('/restapi/stat', method=['GET', 'PUT'])
+def restapi_stat():
+    if request.method == 'GET':
+        return 'Not documented yet.'
+    else:
+        ok_response = {'status': 'ok'}
+
+        data = json.load(utf8reader(request.body))
+
+        if 'token' not in data:
+            return failed_response
+
+        token = data.pop('token')
+
+        active_sessions.lock()
+        if not active_sessions.is_session_alive(token):
+            active_sessions.unlock()
+            return failed_response
+
+        username = active_sessions.get_username(token)
+        active_sessions.unlock()
+
+        cursor = users_db.find({'username': username})
+        if cursor.count() != 1:
+            return failed_response
+
+        user = cursor[0]
+
+        cursor = friends_db.find({'username': username})
+        friends = []
+        for friend in cursor:
+            is_friend = 1
+            user_pair = {'username': friend['friend_username'], 'friend_username': username}
+            if friends_db.find(user_pair).count() == 1:
+                is_friend = 2  # Complete friend
+            friends.append({'username': friend['friend_username'], 'is_friend': is_friend})
+
+        ok_response['messages_received'] = messages_db.find({'to': username}).count()
+        ok_response['messages_unread'] = messages_db.find({'to': username, 'read': False}).count()
+        ok_response['messages_sent'] = messages_db.find({'from': username}).count()
+        ok_response['friend_count'] = len(friends)
+        ok_response['last_login'] = user['last_login']
+
+        return ok_response
+
+
 run(host='', port=8081)
