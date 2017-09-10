@@ -196,14 +196,11 @@ def users_page():
 
 
 @route('/inbox', method=['GET', 'POST'])
-@route('/sent', method=['GET', 'POST'])
 @redirect_to_login_page
 def inbox_page():
-    sub_page = request.url.split('/')[-1].split('?')[0]
-
     token = request.get_cookie('token', secret=cookie_secret)
 
-    if sub_page == 'inbox' and request.method == 'POST':
+    if request.method == 'POST':
         if request.forms.get('mark_as_read') or request.forms.get('mark_as_unread'):
             action = 'mark_as_read' if request.forms.get('mark_as_read') else 'mark_as_unread'
             message_id = request.forms.get(action)
@@ -216,7 +213,54 @@ def inbox_page():
                 info_message = 'Operation failed. Please, try to logout and then login.'
         else:
             info_message = ''
-    elif sub_page == 'sent' and request.method == 'POST':
+    else:
+        info_message = ''
+
+    include_read = request.query.include_read
+    include_read = True if include_read == '1' else False
+
+    rest_request = {'token': token, 'include_read': include_read}
+    rest_response = requests.put('http://localhost:8081/restapi/messages', json=rest_request).json()
+
+    if rest_response['status'] == 'ok':
+        messages_table = '<center>{}</center><table>{}</table>'
+
+        rows = []
+        messages = rest_response['messages']
+
+        row = '<tr><td>From:</td><td>{}</td></tr>' \
+              '<tr><td>Date:</td><td>{}</td></tr>' \
+              '<tr><td>Action:</td><td>{}</td></tr>' \
+              '<tr><td colspan="2">Content:</td></tr>' \
+              '<tr><td colspan="2">{}</td></tr>'
+
+        for message in messages:
+            is_read = message['read']
+            action = '<form action="" method="post">' \
+                     '<input name="{}" value="{}" type="hidden" />' \
+                     '<input name="submit" type="submit" value="{}" />' \
+                     '</form>'.format('mark_as_unread' if is_read else 'mark_as_read',
+                                      message['_id'],
+                                      'Mark as unread' if is_read else 'Mark as read')
+            rows.append(row.format(message['from'], message['datetime'], action, message['content']))
+
+        if not rows:
+            messages_table = '<center>{}</center><center>You have no messages.</center>'.format(info_message)
+        else:
+            messages_table = messages_table.format(info_message, ''.join(rows))
+    else:
+        messages_table = '<center>Could not retrieve messages from the server. ' \
+                         'Please, try to logout and then login.</center>'
+
+    return main_page_template.render(sub_page_name='Inbox', body=messages_table)
+
+
+@route('/sent', method=['GET', 'POST'])
+@redirect_to_login_page
+def inbox_page():
+    token = request.get_cookie('token', secret=cookie_secret)
+
+    if request.method == 'POST':
         recipient = request.forms.get('recipient')
         content = request.forms.get('content')
         rest_request = {'token': token, 'recipient': recipient, 'content': content}
@@ -236,61 +280,41 @@ def inbox_page():
     include_read = True if include_read == '1' else False
 
     rest_request = {'token': token, 'include_read': include_read}
-    if sub_page == 'sent':
-        rest_request['include_received'] = False
-        rest_request['include_sent'] = True
+    rest_request['include_received'] = False
+    rest_request['include_sent'] = True
     rest_response = requests.put('http://localhost:8081/restapi/messages', json=rest_request).json()
 
     if rest_response['status'] == 'ok':
-        if sub_page == 'inbox':
-            messages_table = '<center>{}</center><table>{}</table>'
-        else:
-            messages_table = '<center>{}</center><form action="" method="post"><table>' \
-                             '<tr><td>To:</td>' \
-                             '<td><input name="recipient" value="{}" type="text" /></td></tr>' \
-                             '<tr><td colspan="2">Content:</td></tr>' \
-                             '<tr><td colspan="2"><textarea name="content" rows="10">{}</textarea></td></tr>' \
-                             '<tr><td colspan="2" style="text-align: center;"><input value="Send" type="submit" /></td></tr>' \
-                             '</table></form><table>{}</table>'
+        messages_table = '<center>{}</center><form action="" method="post"><table>' \
+                         '<tr><td>To:</td>' \
+                         '<td><input name="recipient" value="{}" type="text" /></td></tr>' \
+                         '<tr><td colspan="2">Content:</td></tr>' \
+                         '<tr><td colspan="2"><textarea name="content" rows="10">{}</textarea></td></tr>' \
+                         '<tr><td colspan="2" style="text-align: center;"><input value="Send" type="submit" /></td></tr>' \
+                         '</table></form>{}'
 
         rows = []
         messages = rest_response['messages']
-        if sub_page == 'inbox':
-            row = '<tr><td>From:</td><td>{}</td></tr>' \
-                  '<tr><td>Date:</td><td>{}</td></tr>' \
-                  '<tr><td>Action:</td><td>{}</td></tr>' \
-                  '<tr><td colspan="2">Content:</td></tr>' \
-                  '<tr><td colspan="2">{}</td></tr>'
-        else:
-            row = '<tr><td>To:</td><td>{}</td></tr>' \
-                  '<tr><td>Date:</td><td>{}</td></tr>' \
-                  '<tr><td colspan="2">Content:</td></tr>' \
-                  '<tr><td colspan="2">{}</td></tr>'
-        if sub_page == 'inbox':
-            for message in messages:
-                is_read = message['read']
-                action = '<form action="" method="post">' \
-                         '<input name="{}" value="{}" type="hidden" />' \
-                         '<input name="submit" type="submit" value="{}" />' \
-                         '</form>'.format('mark_as_unread' if is_read else 'mark_as_read',
-                                          message['_id'],
-                                          'Mark as unread' if is_read else 'Mark as read')
-                rows.append(row.format(message['from'], message['datetime'], action, message['content']))
-        else:
-            for message in messages:
-                rows.append(row.format(message['to'], message['datetime'], message['content']))
+
+        row = '<tr><td>To:</td><td>{}</td></tr>' \
+              '<tr><td>Date:</td><td>{}</td></tr>' \
+              '<tr><td colspan="2">Content:</td></tr>' \
+              '<tr><td colspan="2">{}</td></tr>'
+
+        for message in messages:
+            rows.append(row.format(message['to'], message['datetime'], message['content']))
+
         if not rows:
-            messages_table = '<center>{}</center><center>You have no messages.</center>'.format(info_message)
+            messages_table = messages_table.format(info_message, recipient,
+                                                   content, '<center>You have not sent any messages.</center>')
         else:
-            if sub_page == 'inbox':
-                messages_table = messages_table.format(info_message, ''.join(rows))
-            else:
-                messages_table = messages_table.format(info_message, recipient, content, ''.join(rows))
+            messages_table = messages_table.format(info_message, recipient,
+                                                   content, '<table>{}</table>'.format(''.join(rows)))
     else:
         messages_table = '<center>Could not retrieve messages from the server. ' \
                          'Please, try to logout and then login.</center>'
 
-    return main_page_template.render(sub_page_name='Inbox', body=messages_table)
+    return main_page_template.render(sub_page_name='Sent', body=messages_table)
 
 
 @route('/login', method=['GET', 'POST'])

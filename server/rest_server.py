@@ -4,7 +4,7 @@ import json
 from hashlib import md5
 from uuid import uuid4
 from bottle import route, request, response, run
-from pymongo import MongoClient
+from pymongo import MongoClient, DESCENDING
 from bson.objectid import ObjectId
 from datetime import datetime
 from threading import RLock
@@ -493,7 +493,7 @@ def restapi_messages():
         messages = []
 
         if include_received:
-            cursor = messages_db.find({'to': username})
+            cursor = messages_db.find({'to': username}).sort('datetime', DESCENDING)
             for message in cursor:
                 if not include_read and message['read']:
                     continue
@@ -501,7 +501,7 @@ def restapi_messages():
                 messages.append(message)
 
         if include_sent:
-            cursor = messages_db.find({'from': username})
+            cursor = messages_db.find({'from': username}).sort('datetime', DESCENDING)
             for message in cursor:
                 message.pop('_id')
                 message.pop('read')

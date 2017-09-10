@@ -1,6 +1,6 @@
 from hashlib import md5
-from pymongo import MongoClient
-from pymongo.errors import ConnectionFailure
+from pymongo import MongoClient, DESCENDING
+from pymongo.errors import ConnectionFailure, OperationFailure
 from pprint import pprint
 from time import sleep
 from random import choice
@@ -51,6 +51,12 @@ def initdb(silent=True):
     for post in users_db.find():
         pprint(post)
 
+    try:
+        messages_db.drop_indexes()
+    except OperationFailure:
+        pass
+
+    messages_db.create_index([('datetime', DESCENDING)])
 
 if __name__ == '__main__':
     initdb(False)
