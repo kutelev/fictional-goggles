@@ -68,6 +68,30 @@ def cur_datetime():
     return datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
 
 
+def get_token(func):
+    def wrapper():
+        if request.method == 'GET':
+            token = request.get_cookie('token', secret=cookie_secret)
+            data = {'token': token}
+        else:
+            data = json.load(utf8reader(request.body))
+            if 'token' not in data:
+                return failed_response
+        return func(data)
+
+    return wrapper
+
+
+def not_support_get(func):
+    def wrapper():
+        if request.method == 'GET':
+            response.headers['Content-Type'] = 'application/json'
+            return failed_response
+        return func()
+
+    return wrapper
+
+
 # For testing purposes only
 @route('/restapi/resetdb', method='PUT')
 def restapi_resetdb():
@@ -103,122 +127,110 @@ def restapi():
 
 
 @route('/restapi/register', method=['GET', 'PUT'])
+@not_support_get
 def restapi_login():
-    if request.method == 'GET':
-        return 'Not documented yet.'
-    else:
-        ok_response = {'status': 'ok'}
+    ok_response = {'status': 'ok'}
 
-        data = json.load(utf8reader(request.body))
+    data = json.load(utf8reader(request.body))
 
-        if {'username', 'password'} - set(data.keys()):
+    if {'username', 'password'} - set(data.keys()):
+        return failed_response
+
+    known_fields = {'username', 'password', 'email', 'real_name', 'hobby'}
+
+    if set(data.keys()) - known_fields:
+        return failed_response
+
+    user = {key: '' for key in known_fields}
+
+    for key, value in data.items():
+        user[key] = str(value)
+
+    # Not safe at all, but still better than raw passwords
+    user['password'] = md5(user['password'].encode()).hexdigest()
+    user['last_login'] = 'never'
+    user['login_count'] = 0
+
+    for value in user['username'], user['password']:
+        if len(value) < 3 or len(value) > 64:
             return failed_response
 
-        known_fields = {'username', 'password', 'email', 'real_name', 'hobby'}
-
-        if set(data.keys()) - known_fields:
+        if re.match('^[a-zA-Z0-9_.-]+$', value) is None:
             return failed_response
 
-        user = {key: '' for key in known_fields}
+    cursor = users_db.find({'username': user['username']})
+    if cursor.count() != 0:
+        return failed_response
 
-        for key, value in data.items():
-            user[key] = str(value)
+    user_id = users_db.insert_one(user)
 
-        # Not safe at all, but still better than raw passwords
-        user['password'] = md5(user['password'].encode()).hexdigest()
-        user['last_login'] = 'never'
-        user['login_count'] = 0
+    cursor = users_db.find({'username': user['username']})
+    if cursor.count() != 1:
+        users_db.delete_one({'_id': user_id})
+        return failed_response
 
-        for value in user['username'], user['password']:
-            if len(value) < 3 or len(value) > 64:
-                return failed_response
-
-            if re.match('^[a-zA-Z0-9_.-]+$', value) is None:
-                return failed_response
-
-        cursor = users_db.find({'username': user['username']})
-        if cursor.count() != 0:
-            return failed_response
-
-        user_id = users_db.insert_one(user)
-
-        cursor = users_db.find({'username': user['username']})
-        if cursor.count() != 1:
-            users_db.delete_one({'_id': user_id})
-            return failed_response
-
-        response.headers['Content-Type'] = 'application/json'
-        return ok_response
+    response.headers['Content-Type'] = 'application/json'
+    return ok_response
 
 
 @route('/restapi/login', method=['GET', 'PUT'])
+@not_support_get
 def restapi_login():
-    if request.method == 'GET':
-        return 'Not documented yet.'
-    else:
-        ok_response = {'status': 'ok'}
+    ok_response = {'status': 'ok'}
 
-        data = json.load(utf8reader(request.body))
-        if 'username' not in data or 'password' not in data:
-            return failed_response
+    data = json.load(utf8reader(request.body))
+    if 'username' not in data or 'password' not in data:
+        return failed_response
 
-        username = data['username']
-        password = data['password']
+    username = data['username']
+    password = data['password']
 
-        cursor = users_db.find({'username': username})
-        if cursor.count() != 1:
-            return failed_response
-        user = cursor[0]
-        # Not safe at all, but still better than raw passwords
-        if user['password'] != md5(password.encode()).hexdigest():
-            return failed_response
+    cursor = users_db.find({'username': username})
+    if cursor.count() != 1:
+        return failed_response
+    user = cursor[0]
+    # Not safe at all, but still better than raw passwords
+    if user['password'] != md5(password.encode()).hexdigest():
+        return failed_response
 
-        user['last_login'] = cur_datetime()
-        user['login_count'] = user['login_count'] + 1
-        users_db.update_one({'_id': user['_id']}, {"$set": user}, upsert=False)
+    user['last_login'] = cur_datetime()
+    user['login_count'] = user['login_count'] + 1
+    users_db.update_one({'_id': user['_id']}, {"$set": user}, upsert=False)
 
-        response.headers['Content-Type'] = 'application/json'
-        auth_token = str(uuid4())
-        active_sessions.register_new_session(auth_token, username)
-        ok_response['token'] = auth_token
-        return ok_response
+    response.headers['Content-Type'] = 'application/json'
+    auth_token = str(uuid4())
+    active_sessions.register_new_session(auth_token, username)
+    ok_response['token'] = auth_token
+    return ok_response
 
 
 @route('/restapi/logout', method=['GET', 'PUT'])
+@not_support_get
 def restapi_logout():
-    if request.method == 'GET':
-        return 'Not documented yet.'
-    else:
-        ok_response = {'status': 'ok'}
+    ok_response = {'status': 'ok'}
 
-        data = json.load(utf8reader(request.body))
-        if 'token' not in data:
-            return failed_response
+    data = json.load(utf8reader(request.body))
+    if 'token' not in data:
+        return failed_response
 
-        token = data.pop('token')
+    token = data.pop('token')
 
-        active_sessions.lock()
-        if not active_sessions.is_session_alive(token):
-            active_sessions.unlock()
-            return failed_response
-
-        active_sessions.unregister_session(token)
+    active_sessions.lock()
+    if not active_sessions.is_session_alive(token):
         active_sessions.unlock()
+        return failed_response
 
-        response.headers['Content-Type'] = 'application/json'
-        return ok_response
+    active_sessions.unregister_session(token)
+    active_sessions.unlock()
+
+    response.headers['Content-Type'] = 'application/json'
+    return ok_response
 
 
 @route('/restapi/checkauth', method=['GET', 'PUT'])
-def restapi_checkauth():
+@get_token
+def restapi_checkauth(data):
     ok_response = {'status': 'ok'}
-    if request.method == 'GET':
-        token = request.get_cookie('token', secret=cookie_secret)
-        data = {'token': token}
-    else:
-        data = json.load(utf8reader(request.body))
-        if 'token' not in data:
-            return failed_response
 
     token = data.pop('token')
 
@@ -230,15 +242,9 @@ def restapi_checkauth():
 
 
 @route('/restapi/usermod', method=['GET', 'PUT'])
-def restapi_usermod():
+@get_token
+def restapi_usermod(data):
     ok_response = {'status': 'ok'}
-    if request.method == 'GET':
-        token = request.get_cookie('token', secret=cookie_secret)
-        data = {'token': token}
-    else:
-        data = json.load(utf8reader(request.body))
-        if 'token' not in data:
-            return failed_response
 
     dump_only = True if len(data) == 1 else False
 
@@ -284,197 +290,183 @@ def restapi_usermod():
 
 
 @route('/restapi/addfriend', method=['GET', 'PUT'])
+@not_support_get
 def restapi_addfriend():
-    if request.method == 'GET':
-        return 'Not documented yet.'
-    else:
-        ok_response = {'status': 'ok'}
+    ok_response = {'status': 'ok'}
 
-        data = json.load(utf8reader(request.body))
-        if 'token' not in data or 'friend_username' not in data:
-            return failed_response
+    data = json.load(utf8reader(request.body))
+    if 'token' not in data or 'friend_username' not in data:
+        return failed_response
 
-        token = data['token']
+    token = data['token']
 
-        active_sessions.lock()
-        if not active_sessions.is_session_alive(token):
-            active_sessions.unlock()
-            return failed_response
-
-        username = active_sessions.get_username(token)
+    active_sessions.lock()
+    if not active_sessions.is_session_alive(token):
         active_sessions.unlock()
+        return failed_response
 
-        friend_username = data['friend_username']
+    username = active_sessions.get_username(token)
+    active_sessions.unlock()
 
-        if username == friend_username:
-            return failed_response
+    friend_username = data['friend_username']
 
-        cursor = users_db.find({'username': friend_username})
-        if cursor.count() != 1:
-            return failed_response
+    if username == friend_username:
+        return failed_response
 
-        friends = {'username': username, 'friend_username': friend_username}
+    cursor = users_db.find({'username': friend_username})
+    if cursor.count() != 1:
+        return failed_response
 
-        cursor = friends_db.find(friends)
-        if cursor.count() == 1:
-            return failed_response
+    friends = {'username': username, 'friend_username': friend_username}
 
-        friends_db.insert_one(friends)
-        return ok_response
+    cursor = friends_db.find(friends)
+    if cursor.count() == 1:
+        return failed_response
+
+    friends_db.insert_one(friends)
+    return ok_response
 
 
 @route('/restapi/delfriend', method=['GET', 'PUT'])
+@not_support_get
 def restapi_delfriend():
-    if request.method == 'GET':
-        return 'Not documented yet.'
-    else:
-        ok_response = {'status': 'ok'}
+    ok_response = {'status': 'ok'}
 
-        data = json.load(utf8reader(request.body))
-        if 'token' not in data or 'friend_username' not in data:
-            return failed_response
+    data = json.load(utf8reader(request.body))
+    if 'token' not in data or 'friend_username' not in data:
+        return failed_response
 
-        token = data['token']
+    token = data['token']
 
-        active_sessions.lock()
-        if not active_sessions.is_session_alive(token):
-            active_sessions.unlock()
-            return failed_response
-
-        username = active_sessions.get_username(token)
+    active_sessions.lock()
+    if not active_sessions.is_session_alive(token):
         active_sessions.unlock()
+        return failed_response
 
-        friend_username = data['friend_username']
+    username = active_sessions.get_username(token)
+    active_sessions.unlock()
 
-        cursor = users_db.find({'username': friend_username})
-        if cursor.count() != 1:
-            return failed_response
+    friend_username = data['friend_username']
 
-        friends = {'username': username, 'friend_username': friend_username}
+    cursor = users_db.find({'username': friend_username})
+    if cursor.count() != 1:
+        return failed_response
 
-        cursor = friends_db.find(friends)
-        if cursor.count() == 0:
-            return failed_response
+    friends = {'username': username, 'friend_username': friend_username}
 
-        friends_db.delete_one(friends)
-        return ok_response
+    cursor = friends_db.find(friends)
+    if cursor.count() == 0:
+        return failed_response
+
+    friends_db.delete_one(friends)
+    return ok_response
 
 
 @route('/restapi/sendmsg', method=['GET', 'PUT'])
+@not_support_get
 def restapi_sendmsg():
-    if request.method == 'GET':
-        return 'Not documented yet.'
-    else:
-        ok_response = {'status': 'ok'}
+    ok_response = {'status': 'ok'}
 
-        data = json.load(utf8reader(request.body))
+    data = json.load(utf8reader(request.body))
 
-        if {'token', 'recipient', 'content'} - set(data.keys()):
-            return failed_response
+    if {'token', 'recipient', 'content'} - set(data.keys()):
+        return failed_response
 
-        token = data['token']
+    token = data['token']
 
-        active_sessions.lock()
-        if not active_sessions.is_session_alive(token):
-            active_sessions.unlock()
-            return failed_response
-
-        username = active_sessions.get_username(token)
+    active_sessions.lock()
+    if not active_sessions.is_session_alive(token):
         active_sessions.unlock()
+        return failed_response
 
-        recipient_username = data['recipient']
-        content = data['content']
+    username = active_sessions.get_username(token)
+    active_sessions.unlock()
 
-        if username == recipient_username:
-            return failed_response
+    recipient_username = data['recipient']
+    content = data['content']
 
-        if len(content) > 1024:
-            return failed_response
+    if username == recipient_username:
+        return failed_response
 
-        cursor = users_db.find({'username': recipient_username})
+    if len(content) > 1024:
+        return failed_response
+
+    cursor = users_db.find({'username': recipient_username})
+    if cursor.count() != 1:
+        return failed_response
+
+    for username1, username2 in ((username, recipient_username), (recipient_username, username)):
+        user_pair = {'username': username1, 'friend_username': username2}
+        cursor = friends_db.find(user_pair)
         if cursor.count() != 1:
             return failed_response
 
-        for username1, username2 in ((username, recipient_username), (recipient_username, username)):
-            user_pair = {'username': username1, 'friend_username': username2}
-            cursor = friends_db.find(user_pair)
-            if cursor.count() != 1:
-                return failed_response
+    message = {'from': username,
+               'to': recipient_username,
+               'content': content,
+               'datetime': cur_datetime(),
+               'read': False}
 
-        message = {'from': username,
-                   'to': recipient_username,
-                   'content': content,
-                   'datetime': cur_datetime(),
-                   'read': False}
-
-        messages_db.insert_one(message)
-        return ok_response
+    messages_db.insert_one(message)
+    return ok_response
 
 
 @route('/restapi/msgmod', method=['GET', 'PUT'])
+@not_support_get
 def restapi_msgmod():
-    if request.method == 'GET':
-        return 'Not documented yet.'
-    else:
-        ok_response = {'status': 'ok'}
+    ok_response = {'status': 'ok'}
 
-        data = json.load(utf8reader(request.body))
+    data = json.load(utf8reader(request.body))
 
-        if {'token', 'message_id', 'action'} - set(data.keys()):
-            return failed_response
+    if {'token', 'message_id', 'action'} - set(data.keys()):
+        return failed_response
 
-        token = data['token']
-        message_id = data['message_id']
-        action = data['action']
+    token = data['token']
+    message_id = data['message_id']
+    action = data['action']
 
-        active_sessions.lock()
-        if not active_sessions.is_session_alive(token):
-            active_sessions.unlock()
-            return failed_response
-
-        username = active_sessions.get_username(token)
+    active_sessions.lock()
+    if not active_sessions.is_session_alive(token):
         active_sessions.unlock()
+        return failed_response
 
-        if action not in ('mark_as_read', 'mark_as_unread'):
-            return failed_response
+    username = active_sessions.get_username(token)
+    active_sessions.unlock()
 
-        cursor = messages_db.find({'_id': ObjectId(message_id)})
-        if cursor.count() != 1:
-            return failed_response
+    if action not in ('mark_as_read', 'mark_as_unread'):
+        return failed_response
 
-        message = cursor[0]
+    cursor = messages_db.find({'_id': ObjectId(message_id)})
+    if cursor.count() != 1:
+        return failed_response
 
-        if action == 'mark_as_read' and message['read']:
-            return failed_response
+    message = cursor[0]
 
-        if action == 'mark_as_unread' and not message['read']:
-            return failed_response
+    if action == 'mark_as_read' and message['read']:
+        return failed_response
 
-        if action in ('mark_as_read', 'mark_as_unread'):
-            message['read'] = True if action == 'mark_as_read' else False
+    if action == 'mark_as_unread' and not message['read']:
+        return failed_response
 
-        cursor = messages_db.find({'_id':  ObjectId(message_id)})
-        if cursor.count() != 1:
-            return failed_response
+    if action in ('mark_as_read', 'mark_as_unread'):
+        message['read'] = True if action == 'mark_as_read' else False
 
-        if cursor[0]['to'] != username:
-            return failed_response
+    cursor = messages_db.find({'_id':  ObjectId(message_id)})
+    if cursor.count() != 1:
+        return failed_response
 
-        messages_db.update_one({'_id':  ObjectId(message_id)}, {"$set": message}, upsert=False)
+    if cursor[0]['to'] != username:
+        return failed_response
 
-        return ok_response
+    messages_db.update_one({'_id':  ObjectId(message_id)}, {"$set": message}, upsert=False)
+
+    return ok_response
 
 
 @route('/restapi/users', method=['GET', 'PUT'])
-def restapi_users():
+@get_token
+def restapi_users(data):
     ok_response = {'status': 'ok'}
-    if request.method == 'GET':
-        token = request.get_cookie('token', secret=cookie_secret)
-        data = {'token': token}
-    else:
-        data = json.load(utf8reader(request.body))
-        if 'token' not in data:
-            return failed_response
 
     token = data.pop('token')
 
@@ -504,15 +496,9 @@ def restapi_users():
 
 
 @route('/restapi/friends', method=['GET', 'PUT'])
-def restapi_friends():
+@get_token
+def restapi_friends(data):
     ok_response = {'status': 'ok'}
-    if request.method == 'GET':
-        token = request.get_cookie('token', secret=cookie_secret)
-        data = {'token': token}
-    else:
-        data = json.load(utf8reader(request.body))
-        if 'token' not in data:
-            return failed_response
 
     token = data.pop('token')
 
@@ -539,15 +525,9 @@ def restapi_friends():
 
 
 @route('/restapi/messages', method=['GET', 'PUT'])
-def restapi_messages():
+@get_token
+def restapi_messages(data):
     ok_response = {'status': 'ok'}
-    if request.method == 'GET':
-        token = request.get_cookie('token', secret=cookie_secret)
-        data = {'token': token}
-    else:
-        data = json.load(utf8reader(request.body))
-        if 'token' not in data:
-            return failed_response
 
     token = data.pop('token')
     include_read = data.pop('include_read', False)
@@ -588,15 +568,9 @@ def restapi_messages():
 
 
 @route('/restapi/stat', method=['GET', 'PUT'])
-def restapi_stat():
+@get_token
+def restapi_stat(data):
     ok_response = {'status': 'ok'}
-    if request.method == 'GET':
-        token = request.get_cookie('token', secret=cookie_secret)
-        data = {'token': token}
-    else:
-        data = json.load(utf8reader(request.body))
-        if 'token' not in data:
-            return failed_response
 
     token = data.pop('token')
 
