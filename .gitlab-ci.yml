@@ -49,6 +49,17 @@ run:spider:
   script: |-
     until $(curl --output /dev/null --silent --head --fail http://$(hostname -I | awk '{print $1}')); do printf '.'; sleep 1; done; echo
     docker run --rm -e FRICTIONAL_GOGGLES_IP=$(hostname -I | awk '{print $1}') fictional-goggles:spider
+    cd spider
+    python3 spider.py -u user1 -p 1234 -c register
+    python3 spider.py -u user2 -p 1234 -c register
+    python3 spider.py -u user1 -p 1234 -c addfriend --friend_username user2
+    python3 spider.py -u user2 -p 1234 -c addfriend --friend_username user1
+    python3 spider.py -u user1 -p 1234 -c sendmsg --recipient user2 --content Message
+    python3 spider.py -u user2 -p 1234 -c sendmsg --recipient user1 --content Message
+    python3 spider.py -u user1 -p 1234 -c messages
+    python3 spider.py -u user2 -p 1234 -c messages
+    python3 spider.py -u user1 -p 1234 -u user2 -p 1234 -c messages
+    python3 spider.py -u user1 -p 1234 -u user2 -p 1234 -c stat -e
   after_script:
   - |
     curl -X PUT -d '{"magic_key": "72a8f4e6-95e4-11e7-92f1-037910ef45f9"}' $(hostname -I | awk '{print $1}')/restapi/shutdown; echo
