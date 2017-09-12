@@ -74,7 +74,10 @@ def get_token(func):
             token = request.get_cookie('token', secret=cookie_secret)
             data = {'token': token}
         else:
-            data = json.load(utf8reader(request.body))
+            try:
+                data = json.load(utf8reader(request.body))
+            except ValueError:
+                return failed_response
             if 'token' not in data:
                 return failed_response
         return func(data)
