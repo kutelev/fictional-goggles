@@ -269,6 +269,20 @@ def test_sendmsg():
                 assert message['content'] == 'message'
 
 
+def test_limit_message_count():
+    user1 = initial_users[0]
+    user2 = initial_users[1]
+    with Session(user1['username'], user1['password']) as session1, \
+            Session(user2['username'], user2['password']) as session2:
+        assert session1.add_friend(user2['username'])
+        assert session2.add_friend(user1['username'])
+        for _ in range(2000):
+            assert session1.sendmsg(user2['username'], 'Message')
+        for _ in range(2000):
+            assert session2.sendmsg(user1['username'], 'Message')
+        assert len(session1.messages['messages']) == 1000
+
+
 def test_users():
     cur_user = initial_users[0]
     semi_friend = initial_users[1]
