@@ -9,6 +9,7 @@ mongo_client = MongoClient()
 users_db = mongo_client.users.posts
 friends_db = mongo_client.friends.posts
 messages_db = mongo_client.messages.posts
+log_db = mongo_client.log.posts
 
 first_names = ['Vasiliy', 'Anatoly', 'Alexandr', 'Alexey', 'Pert', 'Vladimir', 'Ilya', 'Innokentiy']
 last_names = ['Ivanov', 'Sidorov', 'Petrov', 'Maksimov', 'Kozlov', 'Popov']
@@ -38,7 +39,7 @@ initial_users = [user(i) for i in range(1, 6)]
 
 
 def initdb(silent=True):
-    for db in (users_db, friends_db, messages_db):
+    for db in (users_db, friends_db, messages_db, log_db):
         result = db.delete_many({})
         if not silent:
             print('{} document(s) has/have been deleted from the database.'.format(result.deleted_count))
