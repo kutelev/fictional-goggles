@@ -1,5 +1,6 @@
 import requests
 from bottle import route, request, response, redirect, run, SimpleTemplate
+from urllib.parse import urlparse
 
 
 cookie_secret = 'nboitCJ05G3y80QU'
@@ -89,15 +90,36 @@ def redirect_to_login_page(func):
     return wrapper
 
 
+def logging(func):
+    def wrapper():
+        sub_page = urlparse(request.url).path[1:]
+        if not sub_page:
+            sub_page = 'home'
+        token = request.get_cookie('token', secret=cookie_secret)
+        requests.put('http://localhost:8081/restapi/log', json={'token': token, 'sub_page': sub_page}).json()
+        return func()
+
+    return wrapper
+
+
 @route('/')
 @redirect_to_login_page
+@logging
 def main_page():
     token = request.get_cookie('token', secret=cookie_secret)
 
     rest_response = requests.put('http://localhost:8081/restapi/stat', json={'token': token}).json()
 
+    log_table = '<table><tr><th>Sub-page</th><th>Visit count</th></tr>{}</table>'
+    row = '<tr><td>{}</td><td>{}</td></tr>'
+
     if rest_response['status'] == 'ok':
         body = info_table_template.render(response=rest_response)
+        rows = []
+        for key, value in rest_response['counters'].items():
+            rows.append(row.format(key, value))
+        log_table = log_table.format(''.join(rows))
+        body = ''.join([body, '<center>Visit counters</center>', log_table])
     else:
         body = '<center>Failed to retrieve information from the server. ' \
                'Please, try to logout and then login.</center>'
@@ -107,6 +129,7 @@ def main_page():
 
 @route('/profile', method=['GET', 'POST'])
 @redirect_to_login_page
+@logging
 def profile_page():
     token = request.get_cookie('token', secret=cookie_secret)
 
@@ -158,6 +181,7 @@ def profile_page():
 @route('/users', method=['GET', 'POST'])
 @route('/friends', method=['GET', 'POST'])
 @redirect_to_login_page
+@logging
 def users_page():
     sub_page = request.url.split('/')[-1].split('?')[0]
 
@@ -228,6 +252,7 @@ def users_page():
 
 @route('/inbox', method=['GET', 'POST'])
 @redirect_to_login_page
+@logging
 def inbox_page():
     token = request.get_cookie('token', secret=cookie_secret)
 
@@ -288,6 +313,7 @@ def inbox_page():
 
 @route('/sent', method=['GET', 'POST'])
 @redirect_to_login_page
+@logging
 def sent_page():
     def generate_friend_list(token, recipient):
         rest_response = requests.put('http://localhost:8081/restapi/friends', json={'token': token}).json()

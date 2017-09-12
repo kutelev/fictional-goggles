@@ -18,7 +18,9 @@ mongo_client = MongoClient()
 users_db = mongo_client.users.posts
 friends_db = mongo_client.friends.posts
 messages_db = mongo_client.messages.posts
+log_db = mongo_client.log.posts
 
+log_mutex = RLock()
 
 class ActiveSessions:
     def __init__(self):
@@ -87,7 +89,11 @@ def not_support_get(func):
         if request.method == 'GET':
             response.headers['Content-Type'] = 'application/json'
             return failed_response
-        return func()
+        try:
+            data = json.load(utf8reader(request.body))
+        except ValueError:
+            return failed_response
+        return func(data)
 
     return wrapper
 
@@ -126,24 +132,27 @@ def is_email_valid(email):
 
 # For testing purposes only
 @route('/restapi/resetdb', method='PUT')
-def restapi_resetdb():
+@not_support_get
+def restapi_resetdb(data):
     ok_response = {'status': 'ok'}
-    data = json.load(utf8reader(request.body))
+
     if 'magic_key' not in data or data['magic_key'] != 'c4f1571a-9450-11e7-a0a6-0b95339866a9':
         return failed_response
 
     users_db.delete_many({})
     friends_db.delete_many({})
     messages_db.delete_many({})
+    log_db.delete_many({})
 
     return ok_response
 
 
 # For testing purposes only
 @route('/restapi/shutdown', method='PUT')
-def restapi_shutdown():
+@not_support_get
+def restapi_shutdown(data):
     ok_response = {'status': 'ok'}
-    data = json.load(utf8reader(request.body))
+
     if 'magic_key' not in data or data['magic_key'] != '72a8f4e6-95e4-11e7-92f1-037910ef45f9':
         return failed_response
 
@@ -160,10 +169,8 @@ def restapi():
 
 @route('/restapi/register', method=['GET', 'PUT'])
 @not_support_get
-def restapi_login():
+def restapi_login(data):
     ok_response = {'status': 'ok'}
-
-    data = json.load(utf8reader(request.body))
 
     if {'username', 'password'} - set(data.keys()):
         return failed_response
@@ -203,10 +210,9 @@ def restapi_login():
 
 @route('/restapi/login', method=['GET', 'PUT'])
 @not_support_get
-def restapi_login():
+def restapi_login(data):
     ok_response = {'status': 'ok'}
 
-    data = json.load(utf8reader(request.body))
     if 'username' not in data or 'password' not in data:
         return failed_response
 
@@ -234,10 +240,9 @@ def restapi_login():
 
 @route('/restapi/logout', method=['GET', 'PUT'])
 @not_support_get
-def restapi_logout():
+def restapi_logout(data):
     ok_response = {'status': 'ok'}
 
-    data = json.load(utf8reader(request.body))
     if 'token' not in data:
         return failed_response
 
@@ -331,10 +336,9 @@ def restapi_usermod(data):
 
 @route('/restapi/addfriend', method=['GET', 'PUT'])
 @not_support_get
-def restapi_addfriend():
+def restapi_addfriend(data):
     ok_response = {'status': 'ok'}
 
-    data = json.load(utf8reader(request.body))
     if 'token' not in data or 'friend_username' not in data:
         return failed_response
 
@@ -369,10 +373,9 @@ def restapi_addfriend():
 
 @route('/restapi/delfriend', method=['GET', 'PUT'])
 @not_support_get
-def restapi_delfriend():
+def restapi_delfriend(data):
     ok_response = {'status': 'ok'}
 
-    data = json.load(utf8reader(request.body))
     if 'token' not in data or 'friend_username' not in data:
         return failed_response
 
@@ -404,10 +407,8 @@ def restapi_delfriend():
 
 @route('/restapi/sendmsg', method=['GET', 'PUT'])
 @not_support_get
-def restapi_sendmsg():
+def restapi_sendmsg(data):
     ok_response = {'status': 'ok'}
-
-    data = json.load(utf8reader(request.body))
 
     if {'token', 'recipient', 'content'} - set(data.keys()):
         return failed_response
@@ -453,10 +454,8 @@ def restapi_sendmsg():
 
 @route('/restapi/msgmod', method=['GET', 'PUT'])
 @not_support_get
-def restapi_msgmod():
+def restapi_msgmod(data):
     ok_response = {'status': 'ok'}
-
-    data = json.load(utf8reader(request.body))
 
     if {'token', 'message_id', 'action'} - set(data.keys()):
         return failed_response
@@ -643,6 +642,46 @@ def restapi_stat(data):
     ok_response['friend_count'] = len(friends)
     ok_response['last_login'] = user['last_login']
     ok_response['login_count'] = user['login_count']
+
+    cursor = log_db.find({'username': username})
+    if cursor.count() != 0:
+        log_entry = cursor[0]
+        ok_response['counters'] = log_entry['counters']
+
+    return ok_response
+
+@route('/restapi/log', method=['GET', 'PUT'])
+@not_support_get
+def restapi_log(data):
+    ok_response = {'status': 'ok'}
+
+    if {'token', 'sub_page'} - set(data.keys()):
+        return failed_response
+
+    token = data['token']
+    sub_page = data['sub_page']
+
+    active_sessions.lock()
+    if not active_sessions.is_session_alive(token):
+        active_sessions.unlock()
+        return failed_response
+
+    username = active_sessions.get_username(token)
+    active_sessions.unlock()
+
+    with log_mutex:
+        log_entry = {'username': username}
+        cursor = log_db.find(log_entry)
+        if cursor.count() != 0:
+            log_entry = cursor[0]
+        else:
+            log_entry['counters'] = dict()
+        log_entry['counters'][sub_page] = log_entry['counters'].get(sub_page, 0) + 1
+
+    if '_id' in log_entry:
+        log_db.update_one({'_id': log_entry['_id']}, {"$set": log_entry}, upsert=False)
+    else:
+        log_db.insert_one(log_entry)
 
     return ok_response
 
