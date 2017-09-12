@@ -259,11 +259,12 @@ def inbox_page():
         rows = []
         messages = rest_response['messages']
 
-        row = '<tr><td>From:</td><td>{}</td></tr>' \
-              '<tr><td>Date:</td><td>{}</td></tr>' \
-              '<tr><td>Action:</td><td>{}</td></tr>' \
-              '<tr><td colspan="2">Content:</td></tr>' \
-              '<tr><td colspan="2">{}</td></tr>'
+        row = \
+            SimpleTemplate('<tr><td>From:</td><td>{{message["from"]}}</td></tr>'
+                           '<tr><td>Date:</td><td>{{message["datetime"]}}</td></tr>'
+                           '<tr><td>Action:</td><td>{{!action}}</td></tr>'
+                           '<tr><td colspan="2">Content:</td></tr>'
+                           '<tr><td colspan="2">{{message["content"]}}</td></tr>')
 
         for message in messages:
             is_read = message['read']
@@ -273,7 +274,7 @@ def inbox_page():
                      '</form>'.format('mark_as_unread' if is_read else 'mark_as_read',
                                       message['_id'],
                                       'Mark as unread' if is_read else 'Mark as read')
-            rows.append(row.format(message['from'], message['datetime'], action, message['content']))
+            rows.append(row.render(message=message, action=action))
 
         if not rows:
             messages_table = '<center>{}</center><center>You have no messages.</center>'.format(info_message)
@@ -349,13 +350,14 @@ def sent_page():
         rows = []
         messages = rest_response['messages']
 
-        row = '<tr><td>To:</td><td>{}</td></tr>' \
-              '<tr><td>Date:</td><td>{}</td></tr>' \
-              '<tr><td colspan="2">Content:</td></tr>' \
-              '<tr><td colspan="2">{}</td></tr>'
+        row = \
+            SimpleTemplate('<tr><td>To:</td><td>{{to}}</td></tr>'
+                           '<tr><td>Date:</td><td>{{datetime}}</td></tr>'
+                           '<tr><td colspan="2">Content:</td></tr>'
+                           '<tr><td colspan="2">{{content}}</td></tr>')
 
         for message in messages:
-            rows.append(row.format(message['to'], message['datetime'], message['content']))
+            rows.append(row.render(**message))
 
         if not rows:
             messages_table = messages_table.format(info_message, generate_friend_list(token, recipient),
