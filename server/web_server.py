@@ -149,11 +149,11 @@ def profile_page():
             email = ''
             hobby = ''
     else:
-        username = request.forms.get('username')
-        real_name = request.forms.get('real_name')
-        password = request.forms.get('password')
-        email = request.forms.get('email')
-        hobby = request.forms.get('hobby')
+        username = request.forms.username
+        real_name = request.forms.real_name
+        password = request.forms.password
+        email = request.forms.email
+        hobby = request.forms.hobby
 
         rest_request = {'token': token, 'real_name': real_name, 'email': email, 'hobby': hobby}
         if password:
@@ -342,8 +342,9 @@ def sent_page():
     token = request.get_cookie('token', secret=cookie_secret)
 
     if request.method == 'POST':
-        recipient = request.forms.get('recipient')
-        content = request.forms.get('content')
+        recipient = request.forms.recipient
+        content = request.forms.content
+        print(content)
         rest_request = {'token': token, 'recipient': recipient, 'content': content}
         rest_response = requests.put('http://localhost:8081/restapi/sendmsg', json=rest_request).json()
         if rest_response['status'] == 'ok':
