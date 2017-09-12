@@ -121,7 +121,7 @@ def restapi_shutdown():
     return ok_response
 
 
-@route('/restapi', method=['GET'])
+@route('/restapi/', method=['GET'])
 def restapi():
     return static_file('documentation.html', root='.')
 
