@@ -92,6 +92,38 @@ def not_support_get(func):
     return wrapper
 
 
+def is_username_valid(username):
+    if len(username) < 3 or len(username) > 64:
+        return False
+    if re.match('^[a-zA-Z0-9_.-]+$', username) is None:
+        return False
+    return True
+
+
+is_password_valid = is_username_valid
+
+
+def is_real_name_valid(real_name):
+    if len(real_name) > 64:
+        return False
+    if re.match('^[a-zA-Z0-9_. -]+$', real_name) is None:
+        return False
+    return True
+
+
+is_hobby_valid = is_real_name_valid
+
+
+def is_email_valid(email):
+    if len(email) == 0:
+        return True
+    if len(email) < 5 or len(email) > 64:
+        return False
+    if re.match(r'(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)', email) is None:
+        return False
+    return True
+
+
 # For testing purposes only
 @route('/restapi/resetdb', method='PUT')
 def restapi_resetdb():
@@ -151,12 +183,8 @@ def restapi_login():
     user['last_login'] = 'never'
     user['login_count'] = 0
 
-    for value in user['username'], user['password']:
-        if len(value) < 3 or len(value) > 64:
-            return failed_response
-
-        if re.match('^[a-zA-Z0-9_.-]+$', value) is None:
-            return failed_response
+    if not is_username_valid(user['username']) or not is_password_valid(user['password']):
+        return failed_response
 
     cursor = users_db.find({'username': user['username']})
     if cursor.count() != 0:
@@ -254,9 +282,21 @@ def restapi_usermod(data):
     data.pop('last_login', None)
     data.pop('login_count', None)
 
+    if 'password' in data and not is_password_valid(data['password']):
+        return failed_response
+
     if 'password' in data:
         # Not safe at all, but still better than raw passwords
         data['password'] = md5(data['password'].encode()).hexdigest()
+
+    if 'real_name' in data and not is_real_name_valid(data['real_name']):
+        return failed_response
+
+    if 'email' in data and not is_email_valid(data['email']):
+        return failed_response
+
+    if 'hobby' in data and not is_hobby_valid(data['hobby']):
+        return failed_response
 
     active_sessions.lock()
     if (not data and not dump_only) or (not active_sessions.is_session_alive(token)):

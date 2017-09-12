@@ -126,6 +126,7 @@ def profile_page():
             email = ''
             hobby = ''
     else:
+        username = request.forms.get('username')
         real_name = request.forms.get('real_name')
         password = request.forms.get('password')
         email = request.forms.get('email')
@@ -144,10 +145,10 @@ def profile_page():
             hobby = rest_response['hobby']
         else:
             message = 'Your profile has not been updated due to some issues. Please, try to logout and then login.'
-            username = ''
-            real_name = ''
-            email = ''
-            hobby = ''
+            username = username
+            real_name = real_name
+            email = email
+            hobby = hobby
 
     profile_table = profile_table_template.render(message=message, username=username,
                                                   real_name=real_name, email=email, hobby=hobby)
