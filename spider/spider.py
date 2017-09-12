@@ -139,8 +139,6 @@ def setup_module():
 
 def teardown_module():
     resetdb()
-    for user in initial_users:
-        assert register(user)
 
 
 def test_login_logout():
