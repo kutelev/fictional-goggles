@@ -548,7 +548,7 @@ def restapi_messages(data):
     messages = []
 
     if include_received:
-        cursor = messages_db.find({'to': username}).sort('datetime', DESCENDING)
+        cursor = messages_db.find({'to': username}).sort('datetime', DESCENDING).limit(1000)
         for message in cursor:
             if not include_read and message['read']:
                 continue
@@ -556,7 +556,7 @@ def restapi_messages(data):
             messages.append(message)
 
     if include_sent:
-        cursor = messages_db.find({'from': username}).sort('datetime', DESCENDING)
+        cursor = messages_db.find({'from': username}).sort('datetime', DESCENDING).limit(1000)
         for message in cursor:
             message.pop('_id')
             message.pop('read')

@@ -112,6 +112,11 @@ class Session:
         return send_request('messages', {'token': self.token}, FULL_RESPONSE_OR_NONE)
 
     @property
+    def sent_messages(self):
+        request = {'token': self.token, 'include_received': False, 'include_sent': True}
+        return send_request('messages', request, FULL_RESPONSE_OR_NONE)
+
+    @property
     def stat(self):
         return send_request('stat', {'token': self.token}, FULL_RESPONSE_OR_NONE)
 
@@ -267,6 +272,19 @@ def test_sendmsg():
             assert len(messages) == 2 * (len(initial_users) - 1)
             for message in messages:
                 assert message['content'] == 'message'
+
+
+def test_limit_message_count():
+    user1 = initial_users[0]
+    user2 = initial_users[1]
+    with Session(user1['username'], user1['password']) as session1, \
+            Session(user2['username'], user2['password']) as session2:
+        assert session1.add_friend(user2['username'])
+        assert session2.add_friend(user1['username'])
+        for _ in range(1100):
+            assert session2.sendmsg(user1['username'], 'Message')
+        assert len(session1.messages['messages']) == 1000
+        assert len(session2.sent_messages['messages']) == 1000
 
 
 def test_users():
