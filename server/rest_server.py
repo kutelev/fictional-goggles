@@ -282,12 +282,12 @@ def restapi_usermod(data):
     data.pop('last_login', None)
     data.pop('login_count', None)
 
+    if 'password' in data and not is_password_valid(data['password']):
+        return failed_response
+
     if 'password' in data:
         # Not safe at all, but still better than raw passwords
         data['password'] = md5(data['password'].encode()).hexdigest()
-
-    if 'password' in data and not is_password_valid(data['password']):
-        return failed_response
 
     if 'real_name' in data and not is_real_name_valid(data['real_name']):
         return failed_response
