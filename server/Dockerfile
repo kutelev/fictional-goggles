@@ -1,7 +1,9 @@
 FROM ubuntu:16.04
 MAINTAINER Alexander Kutelev <alexander@kutelev.ru>
 RUN apt-get update && apt-get -y upgrade
-RUN apt-get install -y python3-pip python3-pymongo python3-requests mongodb nginx
+RUN apt-get install -y python3-pip python3-pymongo python3-requests mongodb nginx locales
+RUN locale-gen en_US.UTF-8; dpkg-reconfigure --frontend=noninteractive locales; update-locale LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
 # bottle version which comes with Ubuntu 16.04 has a critical (for us) issue. Installing newer version using pip.
 RUN pip3 install --upgrade pip
 RUN pip3 install bottle
