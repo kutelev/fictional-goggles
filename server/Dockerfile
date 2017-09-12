@@ -12,5 +12,6 @@ RUN sed -i 's!^\(\s*access_log\)[^;]*;!\1 /dev/fd/1;!' /etc/nginx/nginx.conf
 RUN sed -i 's!^\(\s*error_log\)[^;]*;!\1 /dev/fd/2;!' /etc/nginx/nginx.conf
 ADD *.py /root/workdir/
 ADD *.sh /root/workdir/
+ADD *.html /root/workdir/
 WORKDIR "/root/workdir"
 ENTRYPOINT ["bash", "start.sh"]
