@@ -4,7 +4,7 @@ import re
 
 from hashlib import md5
 from uuid import uuid4
-from bottle import route, request, response, run
+from bottle import route, request, response, static_file, run
 from pymongo import MongoClient, DESCENDING
 from bson.objectid import ObjectId
 from datetime import datetime
@@ -123,7 +123,7 @@ def restapi_shutdown():
 
 @route('/restapi', method=['GET'])
 def restapi():
-    return 'Not documented yet.'
+    return static_file('documentation.html', root='.')
 
 
 @route('/restapi/register', method=['GET', 'PUT'])

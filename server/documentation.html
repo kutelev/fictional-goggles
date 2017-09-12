@@ -1,0 +1,274 @@
+<html><head><title>Fictional goggles REST API documentation</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/rainbow.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js"></script>
+<script>hljs.initHighlightingOnLoad();</script>
+<style>
+span.request { font-style: italic }
+table { border-spacing: 0; border-collapse: collapse; }
+table td, table th { border: 1px solid black; spacing: 0; }
+table td, th { padding: 5px; text-align: center; }
+body { max-width: 1024px }
+</style>
+</head>
+<body>
+<h1>Fictional goggles REST API documentation</h1>
+
+<p>Fictional goggles supports following REST API requests:</p>
+
+<table>
+<tr><td style="border: none;">
+<ul>
+<li>register</li>
+<li>login</li>
+<li>logout</li>
+<li>checkauth</li>
+</ul>
+</td><td style="border: none;">
+<ul>
+<li>usermod</li>
+<li>addfriend</li>
+<li>delfriend</li>
+<li>users</li>
+</ul>
+</td><td style="border: none;">
+<ul>
+<li>friends</li>
+<li>sendmsg</li>
+<li>msgmod</li>
+<li>messages</li>
+<li>stat</li>
+</ul>
+</td></tr>
+</table>
+
+<p>REST API works on the following URL: <a href="http://fictional-goggles.ru/restapi">http://fictional-goggles.ru/restapi</a></p>
+
+<p>REST API supports only GET and PUT methods. In the table below all possible requests are briefly described.</p>
+
+<table>
+<tr><th>Request</th><th>GET</th><th>PUT</th></tr>
+<tr><td>register</td><td>-</td><td>Register a new user</td></tr>
+<tr><td>login</td><td>-</td><td>Start a new session.</td></tr>
+<tr><td>logout</td><td>-</td><td>Close the session.</td></tr>
+<tr><td>checkauth</td><td colspan="2">Check either an auth token is still valid or not.</td></tr>
+<tr><td>usermod</td><td>Get a user profile.</td><td>Modify an information into a user profile.</td></tr>
+<tr><td>addfriend</td><td>-</td><td>Add a user to the friend list.</td></tr>
+<tr><td>delfriend</td><td>-</td><td>Delete a user from the friend list.</td></tr>
+<tr><td>users</td><td colspan="2">Get a list of all users.</td></tr>
+<tr><td>friends</td><td colspan="2">Get a list of friends.</td></tr>
+<tr><td>sendmsg</td><td>-</td><td>Send a message to a friend.</td></tr>
+<tr><td>msgmod</td><td>-</td><td>Mark a message as read or unread.</td></tr>
+<tr><td>messages</td><td>Get a list of unread received messages.</td><td>Get a list of messages depending on a request. Can return a list of all received messages or sent messages.</td></tr>
+<tr><td>stat</td><td colspan="2">Get a statistics about a user activity.</td></tr>
+</table>
+
+<p>There are also some internal REST API methods, but they will not covered by this documentation.</p>
+
+<p>For using GET method user must be authenticated using Web-UI or login request. Auth token must present as cookie.</p>
+
+<p>PUT method can be used only if session is started using login REST API request.</p>
+
+<p>Fictional goggles REST API is json-based. All PUT requests are json constructions, all responses are also json.</p>
+
+<p>In case of any failures server will respond with the following json which will not contain any reason why request is failed:</p>
+<pre><code class="json">{"status": "failed"}</code></pre>
+
+<p>In case of succeeding response will contain <pre><code class="json">{"status": "ok"}</code></pre> and some other additional information which depends on a certain request.</p>
+
+<h1>Descriptions of the supported requests</h1>
+
+<h2>register</h2>
+
+<p><span class="request">register</span> request is used for creating a new account. To register a new user send the following request to the server:</p>
+<pre><code class="json">{"username": "user1", "username”: "1234"}</code></pre>
+
+<p>Registration may fail due to following reasons:</p>
+<ul>
+<li>username is already taken.</li>
+<li>Given username or password violate at least at of the following requirements:</li>
+<ul>
+<li>Both username and password must be not shorter than 3 or longer than 64 characters.</li>
+<li>Both username and password must match the following regular expression: ^[a-zA-Z0-9_.-]+$</li>
+</ul>
+<li>Internal server error.</li>
+</ul>
+
+<p>If requests succeeded server responds with the following json:</p>
+<pre><code class="json">{"status": "ok"}</code></pre>
+
+<h2>login</h2>
+
+<p><span class="request">login</span> request is used for authentication. Request must contain username and password exactly the same way as for <span class="request">register</span> request.</p>
+
+<pre><code class="json">{"username": "user1", "username”: "1234"}</code></pre>
+
+<p>Server checks provided credential and returns a token if provided credentials are valid.</p>
+
+<p>If requests succeeded server responds with the following json, token will be unique for each session:</p>
+<pre><code class="json">{"status": "ok", "token": "7035a30c-beea-412c-944b-45f9a6449d54"}</code></pre>
+
+<p>In case of failures server responds will the following json:</p>
+<pre><code class="json">{"status": "failed"}</code></pre>
+
+<p>Server limits count of sessions on a per-user basis. If an user initiates more than 128 sessions old sessions are invalidated automatically. So an user can never have more than 128 simultaneous sessions.</p>
+
+<h2>logout</h2>
+
+<p><span class="request">logout</span> request is used for closing earlier opened session.</p>
+
+<p>To close a session following request must be sent:</p>
+<pre><code class="json">{"token": "7035a30c-beea-412c-944b-45f9a6449d54"}</code></pre>
+
+<p>These request respond with status only, it can be either <pre><code class="json">{"status": "ok"}</code></pre> or <pre><code class="json">{"status": "failed"}</code></pre>.</p>
+
+<h2>checkauth</h2>
+
+<p>checkauth is used for checking either earlier opened session is still alive or not.</p>
+
+<p>To check is a session still alive or not following request must be sent:</p>
+<pre><code class="json">{"token": "7035a30c-beea-412c-944b-45f9a6449d54"}</code></pre>
+
+<p>These request respond with status only, it can be either <pre><code class="json">{"status": "ok"}</code></pre> or <pre><code class="json">{"status": "failed"}</code></pre>.</p>
+
+<h2>usermod</h2>
+
+<p><span class="request">usermod</span> is used for reading and modifying user’s profile.</p>
+
+<p>Request can contain only a token:</p>
+<pre><code class="json">{"token": "7035a30c-beea-412c-944b-45f9a6449d54"}</code></pre>
+
+<p>In this case server sends current profile:</p>
+<pre><code class="json">{"real_name": "Vasiliy Popov", "email": "user1@users.com", "username": "user1", "status": "ok", "login_count": 4, "last_login": "2017-09-12 02:38:59.745", "hobby": "Flying"}</code></pre>
+
+<p>If some information needs to be update request must contain names and new values of fields which must be changed:</p>
+<pre><code class="json">{"token": "7035a30c-beea-412c-944b-45f9a6449d54", "email": "user111@users.com"}</code></pre>
+
+<p>In case of succeeding server will respond with an updated profile:</p>
+<pre><code class="json">{"real_name": "Vasiliy Popov", "email": "user111@users.com", "username": "user1", "status": "ok", "login_count": 4, "last_login": "2017-09-12 02:38:59.745", "hobby": "Flying"}</code></pre>
+
+<p>In case of failures server responds will the following json:</p>
+<pre><code class="json">{"status": "failed"}</code></pre>
+
+<p>Take into account that not all fields can be updated, server disallows to change following fields:</p>
+<ul>
+<li>username</li>
+<li>last_login</li>
+<li>login_count</li>
+</ul>
+
+<h2>addfriend and delfriend</h2>
+
+<p>These request do opposite things, first one adds a user to friend list seconds - deletes a user from friend list. Both requests accept have a following form:</p>
+<pre><code class="json">{"token": "7035a30c-beea-412c-944b-45f9a6449d54", "friend_username": "user4"}</code></pre>
+
+<p>These request respond with status only, it can be either <pre><code class="json">{"status": "ok"}</code></pre> or <pre><code class="json">{"status": "failed"}</code></pre>.</p>
+
+<p>The same user can not be added (or removed from) to friend list twice. If user is already added in the friend list <span class="request">addfriend</span> request will do nothing and report a failure. <span class="request">delfriend</span> will fail in a opposite case.</p>
+
+<h2>users and friends</h2>
+
+<p><span class="request">users</span> request returns a list of all registered users including non-friends, <span class="request">friends</span> request returns a list of friends.</p>
+
+<p>Request can contain only a token:</p>
+<pre><code class="json">{"token": "7035a30c-beea-412c-944b-45f9a6449d54"}</code></pre>
+
+<p><span class="request">users</span> request returns all registered users:</p>
+<pre><code class="json">{"status": "ok", "users": [{"is_friend": 0, "username": "user1"}, {"is_friend": 2, "username": "user2"}, {"is_friend": 1, "username": "user3"}, {"is_friend": 2, "username": "user4"}, {"is_friend": 0, "username": "user5"}]}</code></pre>
+
+<p><span class="request">friends</span> request returns only users whom are added to friend list.</p>
+<pre><code class="json">{"status": "ok", "friends": [{"is_friend": 2, "username": "user2"}, {"is_friend": 2, "username": "user4"}, {"is_friend": 1, "username": "user3"}]}</code></pre>
+
+<table>
+<tr><th>is_friend value</th><th>Description</th></tr>
+<tr><td>0</td><td>User is not a friend.</td></tr>
+<tr><td>1</td><td>Semi-friend. You added this user to your friend list, but he did not.</td></tr>
+<tr><td>2</td><td>Friend. You added this user to your friend list and user added you to his friend list.</td></tr>
+</table>
+
+<p>You can only send messages to users who are added to your friend list and who added you to their friend lists (is_friend equals to 2).</p>
+
+<p>Both requests <span class="request">users</span> and <span class="request">friends</span> may respond with failure only if your session is not alive or token is invalid:</p>
+<pre><code class="json">{"status": "failed"}</code></pre>
+
+<h2>sendmsg</h2>
+
+<p><span class="request">sendmsg</span> request is used for sending messages to your friends.</p>
+
+<p>To send a message the following request must be sent to the server:</p>
+<pre><code class="json">{"token": "7035a30c-beea-412c-944b-45f9a6449d54", "recipient": "user4", "content": "Message body."}</code></pre>
+
+<p>Server may respond with <pre><code class="json">{"status": "ok"}</code></pre> or <pre><code class="json">{"status": "failed"}</code></pre>.</p>
+
+<p>Request may fail due to following reasons:</p>
+<ul>
+<li>Session is invalid.</li>
+<li>Message is being sent to a non-existing user.</li>
+<li>Recipient is not a your friend.</li>
+<li>Message to long. Message length is limited with 1024 symbols.</li>
+</ul>
+
+<h2>msgmod</h2>
+
+<p><span class="request">msgmod</span> request is used for marking unread messages as read and vice a versa.</p>
+
+<p>To mark a message as read the following request must be sent:</p>
+<pre><code class="json">{"token": "b9e75d30-6970-4bc4-abc5-01af3357c3b8", "message_id": "59b7792907b831001825366d", "action": "mark_as_read"}</code></pre>
+
+<p>To mark it again as unread:</p>
+<pre><code class="json">{"token": "b9e75d30-6970-4bc4-abc5-01af3357c3b8", "message_id": "59b7792907b831001825366d", "action": "mark_as_unread"}</code></pre>
+
+<p>Server may respond with <pre><code class="json">{"status": "ok"}</code></pre> or <pre><code class="json">{"status": "failed"}</code></pre>.</p>
+
+<p>Request may fail due to following reasons:</p>
+<ul>
+<li>Session is invalid.</li>
+<li>Message with a given ID does not exist.</li>
+<li>Message with a given ID was not sent to you.</li>
+<li>mark_as_read will fail if message is already marked as read, mark_as_unread will fail in a opposite case.</li>
+</ul>
+
+<h2>messages</h2>
+
+<p><span class="request">messages</span> request is used for viewing received or sent messages. By default if only auth token is provided it returns a list of unread messages.</p>
+
+<p>Simplest request:</p>
+<pre><code class="json">{"token": "b9e75d30-6970-4bc4-abc5-01af3357c3b8"}</code></pre>
+
+<p>In this case server will respond with a list of unread messages:</p>
+<pre><code class="json">{"status": "ok", "messages": [{"read": false, "_id": "59b77a0a07b831001825366f", "from": "user1", "to": "user4", "content": "One more message.", "datetime": "2017-09-12 06:09:14.343"}]}</code></pre>
+
+<p>To retrieve all messages including read send the following request:</p>
+<pre><code class="json">{"token": "b9e75d30-6970-4bc4-abc5-01af3357c3b8", "include_read": true}</code></pre>
+
+<p>Server will respond with the following json:</p>
+<pre><code class="json">{"status": "ok", "messages": [{"read": false, "_id": "59b77a0a07b831001825366f", "from": "user1", "to": "user4", "content": "One more message.", "datetime": "2017-09-12 06:09:14.343"}, {"read": true, "_id": "59b7792907b831001825366d", "from": "user1", "to": "user4", "content": "Message body.", "datetime": "2017-09-12 06:05:29.608"}]}</code></pre>
+
+<p>To retrieve a list of sent messages the following request must be used:</p>
+<pre><code class="json">{"token": "b9e75d30-6970-4bc4-abc5-01af3357c3b8", "include_received": false, "include_sent": true}</code></pre>
+
+<p>In this case the server will respond with a list of sent messages:</p>
+<pre><code class="json">{"status": "ok", "messages": [{"from": "user4", "to": "user1", "content": "Hello.", "datetime": "2017-09-12 06:28:33.062"}]}</code></pre>
+
+<p>Potentially you can retrieve all messages in one pass by setting both include_received and include_sent to true. Also take into account that include_read affect only messages which were sent by you. Field read is not available for sent messages and you can not know either recipient read your message or not.</p>
+
+<p>Also take into account that server will send to you at most 1000 received messages, and 1000 sent messages. In worse case response will contain 2000 messages.</p>
+
+<p>Server may respond with <pre><code class="json">{"status": "ok"}</code></pre> or <pre><code class="json">{"status": "failed"}</code></pre>.</p>
+
+<h2>stat</h2>
+
+<p><span class="request">stat</span> request is used for retrieving basic information about current user activity. Request needs only a token:</p>
+<pre><code class="json">{"token": "7035a30c-beea-412c-944b-45f9a6449d54"}</code></pre>
+
+<p>On success it responds with the following json:</p>
+<pre><code class="json">{"messages_received": 1, "messages_sent": 4, "status": "ok", "login_count": 6, "friend_count": 3, "last_login": "2017-09-12 04:32:34.793", "messages_unread": 1}</code></pre>
+
+<p>Returned json contains several counters and date/time of last login.</p>
+
+<p>An failure request will respond with failed status:</p>
+<pre><code class="json">{"status": "failed"}</code></pre>
+
+<p>Only reason why request may fail is invalid token or already closed session.
+
+</body>
+</html>
