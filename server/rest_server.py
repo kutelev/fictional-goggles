@@ -6,6 +6,7 @@ from hashlib import md5
 from uuid import uuid4
 from bottle import route, request, response, static_file, run
 from pymongo import MongoClient, DESCENDING
+from pymongo.errors import OperationFailure
 from bson.objectid import ObjectId
 from datetime import datetime
 from threading import RLock
@@ -146,6 +147,13 @@ def restapi_resetdb(data):
     friends_db.delete_many({})
     messages_db.delete_many({})
     log_db.delete_many({})
+
+    try:
+        messages_db.drop_indexes()
+    except OperationFailure:
+        pass
+
+    messages_db.create_index([('datetime', DESCENDING)])
 
     return ok_response
 

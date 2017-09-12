@@ -9,7 +9,7 @@ from os import getenv
 from random import choice
 from multiprocessing import Pool
 
-hostname= getenv('FRICTIONAL_GOGGLES_IP', 'localhost:8081')
+hostname = getenv('FRICTIONAL_GOGGLES_IP', 'localhost:80')
 restapi_base_url = 'http://{}/restapi'.format(hostname)
 
 first_names = ['Vasiliy', 'Anatoly', 'Alexandr', 'Alexey', 'Pert', 'Vladimir', 'Ilya', 'Innokentiy']
@@ -404,6 +404,8 @@ def process_command(args, username, password):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Fictional goggles spider.')
+    parser.add_argument('--host', type=str, default='localhost', help='server host')
+    parser.add_argument('--port', type=str, default='80', help='server port')
     parser.add_argument('-c', '--command', type=str, required=True,
                         choices=['register', 'addfriend', 'delfriend', 'sendmsg', 'messages', 'stat'],
                         help='command to perform')
@@ -429,6 +431,9 @@ if __name__ == '__main__':
 
     if args.command == 'sendmsg' and (args.recipient is None or args.content is None):
         exit_failed('Missing required argument --recipient or --content.')
+
+    hostname = '{}:{}'.format(args.host, args.port)
+    restapi_base_url = 'http://{}/restapi'.format(hostname)
 
     if args.command == 'messages':
         print('| {: <10} | {: <10} | {: <23} | {}'.format('From', 'To', 'Date', 'Content'))
