@@ -437,4 +437,7 @@ if __name__ == '__main__':
         print('| {: <10} | {: <10} | {: <23} | {}'.format('From', 'To', 'Date', 'Content'))
 
     for username, password in zip(args.username, args.password):
-        process_command(args, username, password)
+        try:
+            process_command(args, username, password)
+        except (Exception, AssertionError) as e:
+            exit_failed('Some error occured. Check arguments you have provided.')
