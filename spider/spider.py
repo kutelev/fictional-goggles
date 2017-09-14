@@ -107,9 +107,21 @@ class Session:
     def sendmsg(self, recipient, content):
         return send_request('sendmsg', {'token': self.token, 'recipient': recipient, 'content': content})
 
+    def mark_as_read(self, message):
+        request = {'token': self.token, 'message_id': message['_id'], 'action': 'mark_as_read'}
+        return send_request('msgmod', request)
+
+    def mark_as_unread(self, message):
+        request = {'token': self.token, 'message_id': message['_id'], 'action': 'mark_as_unread'}
+        return send_request('msgmod', request)
+
     @property
     def messages(self):
         return send_request('messages', {'token': self.token}, FULL_RESPONSE_OR_NONE)
+
+    @property
+    def all_messages(self):
+        return send_request('messages', {'token': self.token, 'include_read': True}, FULL_RESPONSE_OR_NONE)
 
     @property
     def sent_messages(self):
@@ -334,6 +346,64 @@ def test_friends():
                 assert friend['is_friend'] == 1
             if friend['username'] == complete_friend['username']:
                 assert friend['is_friend'] == 2
+
+
+def test_stat():
+    user1 = initial_users[0]
+    user2 = initial_users[1]
+    with Session(user1['username'], user1['password']) as session1, \
+            Session(user2['username'], user2['password']) as session2:
+        for session in session1, session2:
+            assert session.stat['messages_received'] == 0
+            assert session.stat['messages_unread'] == 0
+            assert session.stat['messages_sent'] == 0
+            assert session.stat['friend_count'] == 0
+            assert session.stat['login_count'] == 1
+        assert session1.add_friend(user2['username'])
+        assert session2.add_friend(user1['username'])
+        for session in session1, session2:
+            assert session.stat['friend_count'] == 1
+        for i in range(100):
+            assert session1.sendmsg(user2['username'], str(i))
+            assert session2.sendmsg(user1['username'], str(i))
+        for session in session1, session2:
+            assert session.stat['messages_received'] == 100
+            assert session.stat['messages_unread'] == 100
+            assert session.stat['messages_sent'] == 100
+            assert session.stat['friend_count'] == 1
+            assert session.stat['login_count'] == 1
+    for i in range(100):
+        with Session(user1['username'], user1['password']) as session1, \
+                Session(user2['username'], user2['password']) as session2:
+            for session in session1, session2:
+                assert session.stat['login_count'] == i + 2
+    with Session(user1['username'], user1['password']) as session1, \
+            Session(user2['username'], user2['password']) as session2:
+        for i in range(100):
+            for session in session1, session2:
+                messages = session.messages['messages']
+                assert len(messages) == 100 - i
+                message = messages[0]
+                assert message['content'] == str(99 - i)
+                assert session.stat['messages_unread'] == 100 - i
+                assert session.mark_as_read(message)
+                assert session.stat['messages_received'] == 100
+                assert session.stat['messages_unread'] == 99 - i
+                assert session.stat['messages_sent'] == 100
+        for i in range(100):
+            for session in session1, session2:
+                all_messages = session.all_messages['messages']
+                assert len(all_messages) == 100
+                assert session.stat['messages_unread'] == i
+                message = all_messages[99 - i]
+                assert session.mark_as_unread(message)
+                messages = session.messages['messages']
+                assert len(messages) == 1 + i
+                message = messages[0]
+                assert message['content'] == str(i)
+                assert session.stat['messages_received'] == 100
+                assert session.stat['messages_unread'] == 1 + i
+                assert session.stat['messages_sent'] == 100
 
 
 def concurrent_session_routine(user):
