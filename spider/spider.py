@@ -9,12 +9,13 @@ from os import getenv
 from random import choice
 from multiprocessing import Pool
 
-hostname = getenv('FRICTIONAL_GOGGLES_IP', 'localhost:80')
+hostname = getenv('FRICTIONAL_GOGGLES_IP', 'localhost:8081')
 restapi_base_url = 'http://{}/restapi'.format(hostname)
 
 first_names = ['Vasiliy', 'Anatoly', 'Alexandr', 'Alexey', 'Pert', 'Vladimir', 'Ilya', 'Innokentiy']
 last_names = ['Ivanov', 'Sidorov', 'Petrov', 'Maksimov', 'Kozlov', 'Popov']
 hobbies = ['Screaming', 'Yelling', 'Dancing', 'Drilling', 'Singing', 'Swimming', 'Flying']
+
 
 def generate_user(i):
     return {'username': 'user{}'.format(i),
@@ -151,6 +152,16 @@ def setup_module():
 
 def teardown_module():
     resetdb()
+
+
+def test_garbage_in_request():
+    try:
+        response = requests.put(restapi_url('login'), data=b'garbage').json()
+    except ValueError:
+        assert False
+
+    assert 'status' in response
+    assert response['status'] == 'failed'
 
 
 def test_login_logout():
