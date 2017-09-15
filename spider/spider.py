@@ -106,18 +106,18 @@ class Session:
     def users(self):
         return send_request('users', {'token': self.token}, FULL_RESPONSE_OR_NONE)
 
-    def add_friend(self, friend_username):
-        return send_request('addfriend', {'token': self.token, 'friend_username': friend_username})
+    def add_friend(self, friend):
+        return send_request('addfriend', {'token': self.token, 'friend_username': friend['username']})
 
-    def del_friend(self, friend_username):
-        return send_request('delfriend', {'token': self.token, 'friend_username': friend_username})
+    def del_friend(self, friend):
+        return send_request('delfriend', {'token': self.token, 'friend_username': friend['username']})
 
     @property
     def friends(self):
         return send_request('friends', {'token': self.token}, FULL_RESPONSE_OR_NONE)
 
     def sendmsg(self, recipient, content):
-        return send_request('sendmsg', {'token': self.token, 'recipient': recipient, 'content': content})
+        return send_request('sendmsg', {'token': self.token, 'recipient': recipient['username'], 'content': content})
 
     def mark_as_read(self, message):
         request = {'token': self.token, 'message_id': message['_id'], 'action': 'mark_as_read'}
@@ -278,37 +278,37 @@ def test_add_del_friend():
     for user1, user2 in itertools.product(initial_users, initial_users):
         with Session(user1) as session:
             if user1['username'] == user2['username']:
-                assert not session.add_friend(user2['username'])
+                assert not session.add_friend(user2)
             else:
-                assert session.add_friend(user2['username'])
-                assert not session.add_friend(user2['username'])
+                assert session.add_friend(user2)
+                assert not session.add_friend(user2)
 
     for user1, user2 in itertools.product(initial_users, initial_users):
         with Session(user1) as session:
             if user1['username'] == user2['username']:
-                assert not session.del_friend(user2['username'])
+                assert not session.del_friend(user2)
             else:
-                assert session.del_friend(user2['username'])
-                assert not session.del_friend(user2['username'])
+                assert session.del_friend(user2)
+                assert not session.del_friend(user2)
 
 
 def test_sendmsg():
     for user1, user2 in itertools.product(initial_users, initial_users):
         with Session(user1) as session1, Session(user2) as session2:
             if user1['username'] == user2['username']:
-                assert not session1.add_friend(user2['username'])
-                assert not session1.sendmsg(user2['username'], 'message')
+                assert not session1.add_friend(user2)
+                assert not session1.sendmsg(user2, 'message')
             else:
-                assert not session1.sendmsg(user2['username'], 'message')
-                assert not session2.sendmsg(user1['username'], 'message')
-                assert session1.add_friend(user2['username'])
-                assert not session1.sendmsg(user2['username'], 'message')
-                assert not session2.sendmsg(user1['username'], 'message')
-                assert session2.add_friend(user1['username'])
-                assert session1.sendmsg(user2['username'], 'message')
-                assert session2.sendmsg(user1['username'], 'message')
-                assert session1.del_friend(user2['username'])
-                assert session2.del_friend(user1['username'])
+                assert not session1.sendmsg(user2, 'message')
+                assert not session2.sendmsg(user1, 'message')
+                assert session1.add_friend(user2)
+                assert not session1.sendmsg(user2, 'message')
+                assert not session2.sendmsg(user1, 'message')
+                assert session2.add_friend(user1)
+                assert session1.sendmsg(user2, 'message')
+                assert session2.sendmsg(user1, 'message')
+                assert session1.del_friend(user2)
+                assert session2.del_friend(user1)
     for user in initial_users:
         with Session(user) as session:
             messages = session.messages
@@ -324,10 +324,10 @@ def test_limit_message_count():
     user1 = initial_users[0]
     user2 = initial_users[1]
     with Session(user1) as session1, Session(user2) as session2:
-        assert session1.add_friend(user2['username'])
-        assert session2.add_friend(user1['username'])
+        assert session1.add_friend(user2)
+        assert session2.add_friend(user1)
         for _ in range(1100):
-            assert session2.sendmsg(user1['username'], 'Message')
+            assert session2.sendmsg(user1, 'Message')
         assert len(session1.messages['messages']) == 1000
         assert len(session2.sent_messages['messages']) == 1000
 
@@ -338,10 +338,10 @@ def test_users():
     complete_friend = initial_users[2]
     real_usernames = set()
     with Session(cur_user) as session:
-        assert session.add_friend(semi_friend['username'])
-        assert session.add_friend(complete_friend['username'])
+        assert session.add_friend(semi_friend)
+        assert session.add_friend(complete_friend)
     with Session(complete_friend) as session:
-        assert session.add_friend(cur_user['username'])
+        assert session.add_friend(cur_user)
     with Session(cur_user) as session:
         real_users = session.users
         assert real_users is not None
@@ -366,10 +366,10 @@ def test_friends():
         assert friends is not None
         assert friends['status'] == 'ok'
         assert len(friends['friends']) == 0
-        assert session.add_friend(semi_friend['username'])
-        assert session.add_friend(complete_friend['username'])
+        assert session.add_friend(semi_friend)
+        assert session.add_friend(complete_friend)
     with Session(complete_friend) as session:
-        assert session.add_friend(cur_user['username'])
+        assert session.add_friend(cur_user)
     with Session(cur_user) as session:
         friends = session.friends
         assert friends is not None
@@ -395,13 +395,13 @@ def test_stat():
             assert session.stat['messages_sent'] == 0
             assert session.stat['friend_count'] == 0
             assert session.stat['login_count'] == 1
-        assert session1.add_friend(user2['username'])
-        assert session2.add_friend(user1['username'])
+        assert session1.add_friend(user2)
+        assert session2.add_friend(user1)
         for session in session1, session2:
             assert session.stat['friend_count'] == 1
         for i in range(message_count):
-            assert session1.sendmsg(user2['username'], str(i))
-            assert session2.sendmsg(user1['username'], str(i))
+            assert session1.sendmsg(user2, str(i))
+            assert session2.sendmsg(user1, str(i))
         for session in session1, session2:
             assert session.stat['messages_received'] == message_count
             assert session.stat['messages_unread'] == message_count
@@ -446,13 +446,13 @@ def concurrent_session_routine(user):
         friends = list(filter(lambda friend: friend['username'] != user['username'], friends))
         for _ in range(10):
             for friend in friends:
-                assert session.sendmsg(friend['username'], 'message')
+                assert session.sendmsg(friend, 'message')
 
 
 def test_concurrent_sessions():
     for user1, user2 in itertools.permutations(initial_users, 2):
         with Session(user1) as session:
-            assert session.add_friend(user2['username'])
+            assert session.add_friend(user2)
 
     pool = Pool(8)
     pool.map(concurrent_session_routine, initial_users * 10)
@@ -478,17 +478,17 @@ def process_command(args, username, password):
 
     with Session({'username': username, 'password': password}) as session:
         if args.command == 'addfriend':
-            if session.add_friend(args.friend_username):
+            if session.add_friend({'username': args.friend_username}):
                 print('User "{}" has been added to friends.'.format(args.friend_username))
             else:
                 exit_failed('Failed to add user "{}" to friends.'.format(args.friend_username))
         elif args.command == 'delfriend':
-            if session.del_friend(args.friend_username):
+            if session.del_friend({'username': args.friend_username}):
                 print('User "{}" has been delete from friends.'.format(args.friend_username))
             else:
                 exit_failed('Failed to delete user "{}" from friends.'.format(args.friend_username))
         elif args.command == 'sendmsg':
-            if session.sendmsg(args.recipient, args.content):
+            if session.sendmsg({'username': args.recipient}, args.content):
                 print('Message has been successfully sent to "{}".'.format(args.recipient))
             else:
                 exit_failed('Failed to send a message to "{}"'.format(args.recipient))
