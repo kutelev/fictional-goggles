@@ -5,12 +5,10 @@ import argparse
 import sys
 
 from time import sleep
-from os import getenv
 from random import choice
 from multiprocessing import Pool
 
-hostname = getenv('FRICTIONAL_GOGGLES_IP', 'localhost:8081')
-restapi_base_url = 'http://{}/restapi'.format(hostname)
+from session import Session
 
 MIN_PASSWORD_LENGTH = 3
 MAX_PASSWORD_LENGTH = 64
@@ -36,156 +34,30 @@ def generate_user(i):
 
 initial_users = [generate_user(i) for i in range(1, 6)]
 
-TRUE_OR_FALSE = 0
-FULL_RESPONSE_OR_NONE = 1
-TOKEN_OR_NONE = 2
-
-
-def restapi_url(call):
-    return '{}/{}'.format(restapi_base_url, call)
-
-
-def send_request(call_name, request, ret_type=TRUE_OR_FALSE):
-    response = requests.put(restapi_url(call_name), json=request).json()
-
-    if response['status'] == 'ok':
-        if ret_type == TRUE_OR_FALSE:
-            return True
-        elif ret_type == FULL_RESPONSE_OR_NONE:
-            return response
-        elif ret_type == TOKEN_OR_NONE:
-            return response['token']
-
-    assert len(response) == 1
-    assert response['status'] == 'failed'
-
-    if ret_type == TRUE_OR_FALSE:
-        return False
-    else:
-        return None
-
-
-def resetdb():
-    return send_request('resetdb', {'magic_key': 'c4f1571a-9450-11e7-a0a6-0b95339866a9'})
-
-
-def register(user):
-    return send_request('register', user)
-
-
-def login(username, password):
-    return send_request('login', {'username': username, 'password': password}, TOKEN_OR_NONE)
-
-
-def logout(token):
-    return send_request('logout', {'token': token})
-
-
-class Session:
-    def __init__(self, user):
-        assert 'username' in user
-        assert 'password' in user
-        self.username = user['username']
-        self.token = login(user['username'], user['password'])
-        assert self.token
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, type, value, traceback):
-        assert logout(self.token)
-
-    def usermod(self, key=None, new_value=None):
-        request = {'token': self.token}
-
-        if key is not None:
-            request[key] = new_value
-
-        return send_request('usermod', request, FULL_RESPONSE_OR_NONE)
-
-    @property
-    def users(self):
-        return send_request('users', {'token': self.token}, FULL_RESPONSE_OR_NONE)
-
-    def add_friend(self, friend):
-        return send_request('addfriend', {'token': self.token, 'friend_username': friend['username']})
-
-    def del_friend(self, friend):
-        return send_request('delfriend', {'token': self.token, 'friend_username': friend['username']})
-
-    @property
-    def friends(self):
-        return send_request('friends', {'token': self.token}, FULL_RESPONSE_OR_NONE)
-
-    def sendmsg(self, recipient, content):
-        return send_request('sendmsg', {'token': self.token, 'recipient': recipient['username'], 'content': content})
-
-    def mark_as_read(self, message):
-        request = {'token': self.token, 'message_id': message['_id'], 'action': 'mark_as_read'}
-        return send_request('msgmod', request)
-
-    def mark_as_unread(self, message):
-        request = {'token': self.token, 'message_id': message['_id'], 'action': 'mark_as_unread'}
-        return send_request('msgmod', request)
-
-    @property
-    def messages(self):
-        """
-        Retrieve unread messages from the inbox.
-        """
-        return send_request('messages', {'token': self.token}, FULL_RESPONSE_OR_NONE)
-
-    @property
-    def all_received_messages(self):
-        """
-        Retrieve all received messages including marked as read.
-        """
-        return send_request('messages', {'token': self.token, 'include_read': True}, FULL_RESPONSE_OR_NONE)
-
-    @property
-    def sent_messages(self):
-        """
-        Retrieve sent messages.
-        """
-        request = {'token': self.token, 'include_received': False, 'include_sent': True}
-        return send_request('messages', request, FULL_RESPONSE_OR_NONE)
-
-    @property
-    def all_messages(self):
-        """
-        Retrieve all messages, received and sent. Including already read.
-        """
-        request = {'token': self.token, 'include_received': True, 'include_read': True, 'include_sent': True}
-        return send_request('messages', request, FULL_RESPONSE_OR_NONE)
-
-    @property
-    def stat(self):
-        return send_request('stat', {'token': self.token}, FULL_RESPONSE_OR_NONE)
-
 
 @pytest.fixture(scope="function", autouse=True)
 def resetdb_fixture(request):
-    resetdb()
+    Session.resetdb()
     for user in initial_users:
-        assert register(user)
+        assert Session.register(user)
 
     def teardown():
-        resetdb()
+        Session.resetdb()
 
     request.addfinalizer(teardown)
 
 
 def setup_module():
-    resetdb()
+    Session.resetdb()
 
 
 def teardown_module():
-    resetdb()
+    Session.resetdb()
 
 
 def test_garbage_in_request():
     try:
-        response = requests.put(restapi_url('login'), data=b'garbage').json()
+        response = requests.put(Session.restapi_url('login'), data=b'garbage').json()
     except ValueError:
         assert False
 
@@ -195,23 +67,23 @@ def test_garbage_in_request():
 
 def test_login_logout():
     for user in initial_users:
-        token = login(user['username'], user['password'])
+        token = Session.login(user['username'], user['password'])
         assert token is not None
-        assert logout(token)
+        assert Session.logout(token)
 
 
 def test_login_non_existing_user():
-    assert login('non', 'existing') is None
+    assert Session.login('non', 'existing') is None
 
 
 def test_login_multiple_logins():
     user = initial_users[0]
     tokens = set()
     for _ in range(10):
-        tokens.add(login(user['username'], user['password']))
+        tokens.add(Session.login(user['username'], user['password']))
     assert len(tokens) == 10
     for token in tokens:
-        assert logout(token)
+        assert Session.logout(token)
 
 
 def test_login_session_count_limit():
@@ -219,14 +91,14 @@ def test_login_session_count_limit():
     tokens1 = set()
     tokens2 = set()
     for _ in range(128):
-        tokens1.add(login(user['username'], user['password']))
+        tokens1.add(Session.login(user['username'], user['password']))
     assert len(tokens1) == 128
     for _ in range(128):
-        tokens2.add(login(user['username'], user['password']))
+        tokens2.add(Session.login(user['username'], user['password']))
     for token in tokens1:
-        assert not logout(token)
+        assert not Session.logout(token)
     for token in tokens2:
-        assert logout(token)
+        assert Session.logout(token)
 
 
 def test_login_last_login():
@@ -249,11 +121,11 @@ def test_register():
                 'real_name': '{} {}'.format(choice(first_names), choice(last_names)),
                 'hobby': choice(hobbies)}
 
-    assert register(new_user)
-    assert not register(new_user)
-    token = login(new_user['username'], new_user['password'])
+    assert Session.register(new_user)
+    assert not Session.register(new_user)
+    token = Session.login(new_user['username'], new_user['password'])
     assert token is not None
-    assert logout(token)
+    assert Session.logout(token)
 
 
 def test_register_invalid_username():
@@ -265,7 +137,7 @@ def test_register_invalid_username():
 
     for username in invalid_usernames:
         new_user['username'] = username
-        assert not register(new_user)
+        assert not Session.register(new_user)
 
 
 def test_usermod_change_user_name_forbiddance():
@@ -280,7 +152,7 @@ def test_usermod_change_password():
     new_password = old_password[::-1]
     with Session({'username': user['username'], 'password': old_password}) as session:
         assert session.usermod('password', new_password) is not None
-    assert login(user['username'], old_password) is None
+    assert Session.login(user['username'], old_password) is None
     with Session({'username': user['username'], 'password': new_password}) as session:
         assert session.token
         assert session.usermod('password', old_password) is not None
@@ -541,7 +413,7 @@ def exit_failed(message):
 
 def process_command(args, username, password):
     if args.command == 'register':
-        if register({'username': username, 'password': password}):
+        if Session.register({'username': username, 'password': password}):
             print('User "{}" has been successfully registered.'.format(username))
         else:
             exit_failed('Failed to register a new user.')
@@ -604,8 +476,8 @@ if __name__ == '__main__':
     if args.command == 'sendmsg' and (args.recipient is None or args.content is None):
         exit_failed('Missing required argument --recipient or --content.')
 
-    hostname = '{}:{}'.format(args.host, args.port)
-    restapi_base_url = 'http://{}/restapi'.format(hostname)
+    Session.hostname = '{}:{}'.format(args.host, args.port)
+    Session.restapi_base_url = 'http://{}/restapi'.format(Session.hostname)
 
     if args.command == 'messages':
         print('| {: <10} | {: <10} | {: <23} | {}'.format('From', 'To', 'Date', 'Content'))
