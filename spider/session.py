@@ -14,15 +14,18 @@ class Session:
     def __init__(self, user):
         assert 'username' in user
         assert 'password' in user
+        self.user = user
         self.username = user['username']
-        self.token = Session.login(user['username'], user['password'])
-        assert self.token
+        self.token = None
 
     def __enter__(self):
+        self.token = Session.login(self.user['username'], self.user['password'])
+        assert self.token
         return self
 
     def __exit__(self, type, value, traceback):
         assert Session.logout(self.token)
+        self.token = None
 
     @staticmethod
     def restapi_url(call):
