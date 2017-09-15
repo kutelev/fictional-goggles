@@ -305,8 +305,8 @@ def test_sendmsg():
                 assert not session1.sendmsg(user2, 'message')
                 assert not session2.sendmsg(user1, 'message')
                 assert session2.add_friend(user1)
-                assert session1.sendmsg(user2, 'message')
-                assert session2.sendmsg(user1, 'message')
+                assert session1.sendmsg(user2, 'from: {}, to: {}'.format(user1['username'], user2['username']))
+                assert session2.sendmsg(user1, 'from: {}, to: {}'.format(user2['username'], user1['username']))
                 assert session1.del_friend(user2)
                 assert session2.del_friend(user1)
     for user in initial_users:
@@ -317,7 +317,8 @@ def test_sendmsg():
             messages = messages['messages']
             assert len(messages) == 2 * (len(initial_users) - 1)
             for message in messages:
-                assert message['content'] == 'message'
+                assert message['to'] == user['username']
+                assert message['content'] == 'from: {}, to: {}'.format(message['from'], user['username'])
 
 
 def test_limit_message_count():
