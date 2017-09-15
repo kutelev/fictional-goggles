@@ -85,6 +85,7 @@ class Session:
     def __init__(self, user):
         assert 'username' in user
         assert 'password' in user
+        self.username = user['username']
         self.token = login(user['username'], user['password'])
         assert self.token
 
@@ -129,15 +130,32 @@ class Session:
 
     @property
     def messages(self):
+        """
+        Retrieve unread messages from the inbox.
+        """
         return send_request('messages', {'token': self.token}, FULL_RESPONSE_OR_NONE)
 
     @property
-    def all_messages(self):
+    def all_received_messages(self):
+        """
+        Retrieve all received messages including marked as read.
+        """
         return send_request('messages', {'token': self.token, 'include_read': True}, FULL_RESPONSE_OR_NONE)
 
     @property
     def sent_messages(self):
+        """
+        Retrieve sent messages.
+        """
         request = {'token': self.token, 'include_received': False, 'include_sent': True}
+        return send_request('messages', request, FULL_RESPONSE_OR_NONE)
+
+    @property
+    def all_messages(self):
+        """
+        Retrieve all messages, received and sent. Including already read.
+        """
+        request = {'token': self.token, 'include_received': True, 'include_read': True, 'include_sent': True}
         return send_request('messages', request, FULL_RESPONSE_OR_NONE)
 
     @property
@@ -321,16 +339,68 @@ def test_sendmsg():
                 assert message['content'] == 'from: {}, to: {}'.format(message['from'], user['username'])
 
 
-def test_limit_message_count():
+def test_msgmod():
+    message_count = 10
     user1 = initial_users[0]
     user2 = initial_users[1]
     with Session(user1) as session1, Session(user2) as session2:
         assert session1.add_friend(user2)
         assert session2.add_friend(user1)
-        for _ in range(1100):
+        for i in range(1, message_count + 1):
+            assert session1.sendmsg(user2, 'Message')
             assert session2.sendmsg(user1, 'Message')
-        assert len(session1.messages['messages']) == 1000
-        assert len(session2.sent_messages['messages']) == 1000
+            assert len(session1.messages['messages']) == i
+            assert len(session2.messages['messages']) == i
+            assert len(session1.all_received_messages['messages']) == i
+            assert len(session2.all_received_messages['messages']) == i
+            assert len(session1.sent_messages['messages']) == i
+            assert len(session2.sent_messages['messages']) == i
+            assert len(session1.all_messages['messages']) == i * 2
+            assert len(session2.all_messages['messages']) == i * 2
+        for session, friend_session in itertools.permutations((session1, session2), 2):
+            for message in session.messages['messages']:
+                assert 'read' in message
+                assert '_id' in message
+                assert message['read'] is False
+            for message in session.sent_messages['messages']:
+                assert 'read' not in message
+                assert '_id' not in message
+            for i in range(1, message_count + 1):
+                assert session.mark_as_read(session.all_received_messages['messages'][message_count - i])
+                for j, message in enumerate(session.all_received_messages['messages']):
+                    assert message['read'] is (True if j >= message_count - i else False)
+                assert len(session.messages['messages']) == message_count - i
+            len(session.messages['messages']) == 0
+            len(session.all_received_messages['messages']) == message_count
+            len(session.sent_messages['messages']) == message_count
+            len(session.all_messages['messages']) == message_count * 2
+            for message in session.all_messages['messages']:
+                if message['to'] == session.username:
+                    assert message['from'] == friend_session.username
+                    assert 'read' in message
+                    assert '_id' in message
+                    assert message['read'] is True
+                else:
+                    assert message['to'] == friend_session.username
+                    assert message['from'] == session.username
+                    assert 'read' not in message
+                    assert '_id' not in message
+
+
+def test_limit_message_count():
+    message_count = 1000
+    user1 = initial_users[0]
+    user2 = initial_users[1]
+    with Session(user1) as session1, Session(user2) as session2:
+        assert session1.add_friend(user2)
+        assert session2.add_friend(user1)
+        for _ in range(message_count + 100):
+            assert session1.sendmsg(user2, 'Message')
+            assert session2.sendmsg(user1, 'Message')
+        for session in session1, session2:
+            assert len(session.messages['messages']) == message_count
+            assert len(session.sent_messages['messages']) == message_count
+            assert len(session.all_messages['messages']) == message_count * 2
 
 
 def test_users():
@@ -427,7 +497,7 @@ def test_stat():
                 assert session.stat['messages_sent'] == message_count
         for i in range(message_count):
             for session in session1, session2:
-                all_messages = session.all_messages['messages']
+                all_messages = session.all_received_messages['messages']
                 assert len(all_messages) == message_count
                 assert session.stat['messages_unread'] == i
                 message = all_messages[message_count - 1 - i]
