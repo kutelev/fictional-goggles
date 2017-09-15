@@ -1,14 +1,13 @@
 import requests
-
-from os import getenv
-
-TRUE_OR_FALSE = 0
-FULL_RESPONSE_OR_NONE = 1
-TOKEN_OR_NONE = 2
+import os
 
 
 class Session:
-    hostname = getenv('FRICTIONAL_GOGGLES_IP', 'localhost:8081')
+    TRUE_OR_FALSE = 0
+    FULL_RESPONSE_OR_NONE = 1
+    TOKEN_OR_NONE = 2
+
+    hostname = os.getenv('FRICTIONAL_GOGGLES_IP', 'localhost:8081')
     restapi_base_url = 'http://{}/restapi'.format(hostname)
 
     def __init__(self, user):
@@ -36,17 +35,17 @@ class Session:
         response = requests.put(Session.restapi_url(call_name), json=request).json()
 
         if response['status'] == 'ok':
-            if ret_type == TRUE_OR_FALSE:
+            if ret_type == Session.TRUE_OR_FALSE:
                 return True
-            elif ret_type == FULL_RESPONSE_OR_NONE:
+            elif ret_type == Session.FULL_RESPONSE_OR_NONE:
                 return response
-            elif ret_type == TOKEN_OR_NONE:
+            elif ret_type == Session.TOKEN_OR_NONE:
                 return response['token']
 
         assert len(response) == 1
         assert response['status'] == 'failed'
 
-        if ret_type == TRUE_OR_FALSE:
+        if ret_type == Session.TRUE_OR_FALSE:
             return False
         else:
             return None
@@ -61,7 +60,7 @@ class Session:
 
     @staticmethod
     def login(username, password):
-        return Session.send_request('login', {'username': username, 'password': password}, TOKEN_OR_NONE)
+        return Session.send_request('login', {'username': username, 'password': password}, Session.TOKEN_OR_NONE)
 
     @staticmethod
     def logout(token):
@@ -73,11 +72,11 @@ class Session:
         if key is not None:
             request[key] = new_value
 
-        return Session.send_request('usermod', request, FULL_RESPONSE_OR_NONE)
+        return Session.send_request('usermod', request, Session.FULL_RESPONSE_OR_NONE)
 
     @property
     def users(self):
-        return Session.send_request('users', {'token': self.token}, FULL_RESPONSE_OR_NONE)
+        return Session.send_request('users', {'token': self.token}, Session.FULL_RESPONSE_OR_NONE)
 
     def add_friend(self, friend):
         return Session.send_request('addfriend', {'token': self.token, 'friend_username': friend['username']})
@@ -87,7 +86,7 @@ class Session:
 
     @property
     def friends(self):
-        return Session.send_request('friends', {'token': self.token}, FULL_RESPONSE_OR_NONE)
+        return Session.send_request('friends', {'token': self.token}, Session.FULL_RESPONSE_OR_NONE)
 
     def sendmsg(self, recipient, content):
         request = {'token': self.token, 'recipient': recipient['username'], 'content': content}
@@ -106,14 +105,15 @@ class Session:
         """
         Retrieve unread messages from the inbox.
         """
-        return Session.send_request('messages', {'token': self.token}, FULL_RESPONSE_OR_NONE)
+        return Session.send_request('messages', {'token': self.token}, Session.FULL_RESPONSE_OR_NONE)
 
     @property
     def all_received_messages(self):
         """
         Retrieve all received messages including marked as read.
         """
-        return Session.send_request('messages', {'token': self.token, 'include_read': True}, FULL_RESPONSE_OR_NONE)
+        request = {'token': self.token, 'include_read': True}
+        return Session.send_request('messages', request, Session.FULL_RESPONSE_OR_NONE)
 
     @property
     def sent_messages(self):
@@ -121,7 +121,7 @@ class Session:
         Retrieve sent messages.
         """
         request = {'token': self.token, 'include_received': False, 'include_sent': True}
-        return Session.send_request('messages', request, FULL_RESPONSE_OR_NONE)
+        return Session.send_request('messages', request, Session.FULL_RESPONSE_OR_NONE)
 
     @property
     def all_messages(self):
@@ -129,8 +129,8 @@ class Session:
         Retrieve all messages, received and sent. Including already read.
         """
         request = {'token': self.token, 'include_received': True, 'include_read': True, 'include_sent': True}
-        return Session.send_request('messages', request, FULL_RESPONSE_OR_NONE)
+        return Session.send_request('messages', request, Session.FULL_RESPONSE_OR_NONE)
 
     @property
     def stat(self):
-        return Session.send_request('stat', {'token': self.token}, FULL_RESPONSE_OR_NONE)
+        return Session.send_request('stat', {'token': self.token}, Session.FULL_RESPONSE_OR_NONE)
