@@ -1,8 +1,6 @@
 import requests
 import pytest
 import itertools
-import argparse
-import sys
 
 from time import sleep
 from random import choice
