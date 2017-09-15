@@ -360,6 +360,8 @@ def test_friends():
 
 
 def test_stat():
+    message_count = 10
+    login_count = 10
     user1 = initial_users[0]
     user2 = initial_users[1]
     with Session(user1['username'], user1['password']) as session1, \
@@ -374,54 +376,53 @@ def test_stat():
         assert session2.add_friend(user1['username'])
         for session in session1, session2:
             assert session.stat['friend_count'] == 1
-        for i in range(100):
+        for i in range(message_count):
             assert session1.sendmsg(user2['username'], str(i))
             assert session2.sendmsg(user1['username'], str(i))
         for session in session1, session2:
-            assert session.stat['messages_received'] == 100
-            assert session.stat['messages_unread'] == 100
-            assert session.stat['messages_sent'] == 100
+            assert session.stat['messages_received'] == message_count
+            assert session.stat['messages_unread'] == message_count
+            assert session.stat['messages_sent'] == message_count
             assert session.stat['friend_count'] == 1
             assert session.stat['login_count'] == 1
-    for i in range(100):
+    for i in range(login_count):
         with Session(user1['username'], user1['password']) as session1, \
                 Session(user2['username'], user2['password']) as session2:
             for session in session1, session2:
                 assert session.stat['login_count'] == i + 2
     with Session(user1['username'], user1['password']) as session1, \
             Session(user2['username'], user2['password']) as session2:
-        for i in range(100):
+        for i in range(message_count):
             for session in session1, session2:
                 messages = session.messages['messages']
-                assert len(messages) == 100 - i
+                assert len(messages) == message_count - i
                 message = messages[0]
-                assert message['content'] == str(99 - i)
-                assert session.stat['messages_unread'] == 100 - i
+                assert message['content'] == str(message_count - 1 - i)
+                assert session.stat['messages_unread'] == message_count - i
                 assert session.mark_as_read(message)
-                assert session.stat['messages_received'] == 100
-                assert session.stat['messages_unread'] == 99 - i
-                assert session.stat['messages_sent'] == 100
-        for i in range(100):
+                assert session.stat['messages_received'] == message_count
+                assert session.stat['messages_unread'] == message_count - 1 - i
+                assert session.stat['messages_sent'] == message_count
+        for i in range(message_count):
             for session in session1, session2:
                 all_messages = session.all_messages['messages']
-                assert len(all_messages) == 100
+                assert len(all_messages) == message_count
                 assert session.stat['messages_unread'] == i
-                message = all_messages[99 - i]
+                message = all_messages[message_count - 1 - i]
                 assert session.mark_as_unread(message)
                 messages = session.messages['messages']
                 assert len(messages) == 1 + i
                 message = messages[0]
                 assert message['content'] == str(i)
-                assert session.stat['messages_received'] == 100
+                assert session.stat['messages_received'] == message_count
                 assert session.stat['messages_unread'] == 1 + i
-                assert session.stat['messages_sent'] == 100
+                assert session.stat['messages_sent'] == message_count
 
 
 def concurrent_session_routine(user):
     with Session(user['username'], user['password']) as session:
         friends = initial_users[:]
-        index = friends.index(user)
-        del friends[index]
+        friends = list(filter(lambda friend: friend['username'] != user['username'], friends))
         for _ in range(10):
             for friend in friends:
                 assert session.sendmsg(friend['username'], 'message')
