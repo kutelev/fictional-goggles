@@ -2,6 +2,20 @@ import requests
 import os
 
 
+def retry(func):
+    ATTEMPT_COUNT = 5
+
+    def wrapper(*args):
+        for i in range(ATTEMPT_COUNT + 1):
+            try:
+                return func(*args)
+            except requests.exceptions.ConnectionError:
+                if i < ATTEMPT_COUNT:
+                    continue
+                raise
+    return wrapper
+
+
 class Session:
     TRUE_OR_FALSE = 0
     FULL_RESPONSE_OR_NONE = 1
@@ -31,6 +45,7 @@ class Session:
         return '{}/{}'.format(Session.restapi_base_url, call)
 
     @staticmethod
+    @retry
     def send_request(call_name, request, ret_type=TRUE_OR_FALSE):
         response = requests.put(Session.restapi_url(call_name), json=request).json()
 
