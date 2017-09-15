@@ -73,8 +73,10 @@ def logout(token):
 
 
 class Session:
-    def __init__(self, username, password):
-        self.token = login(username, password)
+    def __init__(self, user):
+        assert 'username' in user
+        assert 'password' in user
+        self.token = login(user['username'], user['password'])
         assert self.token
 
     def __enter__(self):
@@ -205,7 +207,7 @@ def test_login_last_login():
     dates = set()
     for _ in range(10):
         sleep(0.01)
-        with Session(user['username'], user['password']) as session:
+        with Session(user) as session:
             remote_user = session.usermod()
             assert remote_user is not None
             assert 'last_login' in remote_user
@@ -229,7 +231,7 @@ def test_register():
 
 def test_usermod_change_user_name_forbiddance():
     user = initial_users[0]
-    with Session(user['username'], user['password']) as session:
+    with Session(user) as session:
         assert session.usermod('username', 'new_user_name') is None
 
 
@@ -237,19 +239,19 @@ def test_usermod_change_password():
     user = initial_users[0]
     old_password = user['password']
     new_password = old_password[::-1]
-    with Session(user['username'], old_password) as session:
+    with Session({'username': user['username'], 'password': old_password}) as session:
         assert session.usermod('password', new_password) is not None
     assert login(user['username'], old_password) is None
-    with Session(user['username'], new_password) as session:
+    with Session({'username': user['username'], 'password': new_password}) as session:
         assert session.token
         assert session.usermod('password', old_password) is not None
-    with Session(user['username'], old_password) as session:
+    with Session({'username': user['username'], 'password': old_password}) as session:
         assert session.token
 
 
 def test_add_del_friend():
     for user1, user2 in itertools.product(initial_users, initial_users):
-        with Session(user1['username'], user1['password']) as session:
+        with Session(user1) as session:
             if user1['username'] == user2['username']:
                 assert not session.add_friend(user2['username'])
             else:
@@ -257,7 +259,7 @@ def test_add_del_friend():
                 assert not session.add_friend(user2['username'])
 
     for user1, user2 in itertools.product(initial_users, initial_users):
-        with Session(user1['username'], user1['password']) as session:
+        with Session(user1) as session:
             if user1['username'] == user2['username']:
                 assert not session.del_friend(user2['username'])
             else:
@@ -267,9 +269,7 @@ def test_add_del_friend():
 
 def test_sendmsg():
     for user1, user2 in itertools.product(initial_users, initial_users):
-        packed_user1 = user1['username'], user1['password']
-        packed_user2 = user2['username'], user2['password']
-        with Session(*packed_user1) as session1, Session(*packed_user2) as session2:
+        with Session(user1) as session1, Session(user2) as session2:
             if user1['username'] == user2['username']:
                 assert not session1.add_friend(user2['username'])
                 assert not session1.sendmsg(user2['username'], 'message')
@@ -285,7 +285,7 @@ def test_sendmsg():
                 assert session1.del_friend(user2['username'])
                 assert session2.del_friend(user1['username'])
     for user in initial_users:
-        with Session(user['username'], user['password']) as session:
+        with Session(user) as session:
             messages = session.messages
             assert messages is not None
             assert messages['status'] == 'ok'
@@ -298,8 +298,7 @@ def test_sendmsg():
 def test_limit_message_count():
     user1 = initial_users[0]
     user2 = initial_users[1]
-    with Session(user1['username'], user1['password']) as session1, \
-            Session(user2['username'], user2['password']) as session2:
+    with Session(user1) as session1, Session(user2) as session2:
         assert session1.add_friend(user2['username'])
         assert session2.add_friend(user1['username'])
         for _ in range(1100):
@@ -313,12 +312,12 @@ def test_users():
     semi_friend = initial_users[1]
     complete_friend = initial_users[2]
     real_usernames = set()
-    with Session(cur_user['username'], cur_user['password']) as session:
+    with Session(cur_user) as session:
         assert session.add_friend(semi_friend['username'])
         assert session.add_friend(complete_friend['username'])
-    with Session(complete_friend['username'], complete_friend['password']) as session:
+    with Session(complete_friend) as session:
         assert session.add_friend(cur_user['username'])
-    with Session(cur_user['username'], cur_user['password']) as session:
+    with Session(cur_user) as session:
         real_users = session.users
         assert real_users is not None
         assert real_users['status'] == 'ok'
@@ -337,16 +336,16 @@ def test_friends():
     semi_friend = initial_users[1]
     complete_friend = initial_users[2]
 
-    with Session(cur_user['username'], cur_user['password']) as session:
+    with Session(cur_user) as session:
         friends = session.friends
         assert friends is not None
         assert friends['status'] == 'ok'
         assert len(friends['friends']) == 0
         assert session.add_friend(semi_friend['username'])
         assert session.add_friend(complete_friend['username'])
-    with Session(complete_friend['username'], complete_friend['password']) as session:
+    with Session(complete_friend) as session:
         assert session.add_friend(cur_user['username'])
-    with Session(cur_user['username'], cur_user['password']) as session:
+    with Session(cur_user) as session:
         friends = session.friends
         assert friends is not None
         assert friends['status'] == 'ok'
@@ -364,8 +363,7 @@ def test_stat():
     login_count = 10
     user1 = initial_users[0]
     user2 = initial_users[1]
-    with Session(user1['username'], user1['password']) as session1, \
-            Session(user2['username'], user2['password']) as session2:
+    with Session(user1) as session1, Session(user2) as session2:
         for session in session1, session2:
             assert session.stat['messages_received'] == 0
             assert session.stat['messages_unread'] == 0
@@ -386,12 +384,10 @@ def test_stat():
             assert session.stat['friend_count'] == 1
             assert session.stat['login_count'] == 1
     for i in range(login_count):
-        with Session(user1['username'], user1['password']) as session1, \
-                Session(user2['username'], user2['password']) as session2:
+        with Session(user1) as session1, Session(user2) as session2:
             for session in session1, session2:
                 assert session.stat['login_count'] == i + 2
-    with Session(user1['username'], user1['password']) as session1, \
-            Session(user2['username'], user2['password']) as session2:
+    with Session(user1) as session1, Session(user2) as session2:
         for i in range(message_count):
             for session in session1, session2:
                 messages = session.messages['messages']
@@ -420,7 +416,7 @@ def test_stat():
 
 
 def concurrent_session_routine(user):
-    with Session(user['username'], user['password']) as session:
+    with Session(user) as session:
         friends = initial_users[:]
         friends = list(filter(lambda friend: friend['username'] != user['username'], friends))
         for _ in range(10):
@@ -430,14 +426,14 @@ def concurrent_session_routine(user):
 
 def test_concurrent_sessions():
     for user1, user2 in itertools.permutations(initial_users, 2):
-        with Session(user1['username'], user1['password']) as session:
+        with Session(user1) as session:
             assert session.add_friend(user2['username'])
 
     pool = Pool(8)
     pool.map(concurrent_session_routine, initial_users * 10)
 
     for user in initial_users:
-        with Session(user['username'], user['password']) as session:
+        with Session(user) as session:
             messages = session.messages['messages']
             assert len(messages) == 400
 
@@ -455,7 +451,7 @@ def process_command(args, username, password):
             exit_failed('Failed to register a new user.')
         return
 
-    with Session(username, password) as session:
+    with Session({'username': username, 'password': password}) as session:
         if args.command == 'addfriend':
             if session.add_friend(args.friend_username):
                 print('User "{}" has been added to friends.'.format(args.friend_username))
@@ -521,5 +517,5 @@ if __name__ == '__main__':
     for username, password in zip(args.username, args.password):
         try:
             process_command(args, username, password)
-        except (Exception, AssertionError) as e:
-            exit_failed('Some error occured. Check arguments you have provided.')
+        except (Exception, AssertionError):
+            exit_failed('Some error occurred. Check arguments you have provided.')
