@@ -242,10 +242,10 @@ def test_msgmod():
                 for j, message in enumerate(session.all_received_messages['messages']):
                     assert message['read'] is (True if j >= message_count - i else False)
                 assert len(session.messages['messages']) == message_count - i
-            len(session.messages['messages']) == 0
-            len(session.all_received_messages['messages']) == message_count
-            len(session.sent_messages['messages']) == message_count
-            len(session.all_messages['messages']) == message_count * 2
+            assert len(session.messages['messages']) == 0
+            assert len(session.all_received_messages['messages']) == message_count
+            assert len(session.sent_messages['messages']) == message_count
+            assert len(session.all_messages['messages']) == message_count * 2
             for message in session.all_messages['messages']:
                 if message['to'] == session.username:
                     assert message['from'] == friend_session.username
