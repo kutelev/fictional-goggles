@@ -12,9 +12,18 @@ from multiprocessing import Pool
 hostname = getenv('FRICTIONAL_GOGGLES_IP', 'localhost:8081')
 restapi_base_url = 'http://{}/restapi'.format(hostname)
 
+MIN_PASSWORD_LENGTH = 3
+MAX_PASSWORD_LENGTH = 64
+
 first_names = ['Vasiliy', 'Anatoly', 'Alexandr', 'Alexey', 'Pert', 'Vladimir', 'Ilya', 'Innokentiy']
 last_names = ['Ivanov', 'Sidorov', 'Petrov', 'Maksimov', 'Kozlov', 'Popov']
 hobbies = ['Screaming', 'Yelling', 'Dancing', 'Drilling', 'Singing', 'Swimming', 'Flying']
+
+valid_passwords = ['a' * MIN_PASSWORD_LENGTH, 'a' * MAX_PASSWORD_LENGTH]
+invalid_passwords = ['a' * (MIN_PASSWORD_LENGTH - 1), 'a' * (MAX_PASSWORD_LENGTH + 1),
+                     'invalid password', '<invalid>', '*invalid*', '%invalid%']  # 1234, True
+
+invalid_usernames = invalid_passwords
 
 
 def generate_user(i):
@@ -229,6 +238,18 @@ def test_register():
     assert logout(token)
 
 
+def test_register_invalid_username():
+    new_user = {'username': 'new_user',
+                'password': '1234',
+                'email': 'new_user@users.com',
+                'real_name': '{} {}'.format(choice(first_names), choice(last_names)),
+                'hobby': choice(hobbies)}
+
+    for username in invalid_usernames:
+        new_user['username'] = username
+        assert not register(new_user)
+
+
 def test_usermod_change_user_name_forbiddance():
     user = initial_users[0]
     with Session(user) as session:
@@ -247,6 +268,10 @@ def test_usermod_change_password():
         assert session.usermod('password', old_password) is not None
     with Session({'username': user['username'], 'password': old_password}) as session:
         assert session.token
+        for password in valid_passwords:
+            assert session.usermod('password', password) is not None
+        for password in invalid_passwords:
+            assert session.usermod('password', password) is None
 
 
 def test_add_del_friend():
