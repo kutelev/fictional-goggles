@@ -23,6 +23,7 @@ log_db = mongo_client.log.posts
 
 log_mutex = RLock()
 
+
 class ActiveSessions:
     def __init__(self):
         self.mutex = RLock()
@@ -73,6 +74,7 @@ def cur_datetime():
 
 def get_token(func):
     def wrapper():
+        response.headers['Content-Type'] = 'application/json'
         if request.method == 'GET':
             token = request.get_cookie('token', secret=cookie_secret)
             data = {'token': token}
@@ -90,8 +92,8 @@ def get_token(func):
 
 def not_support_get(func):
     def wrapper():
+        response.headers['Content-Type'] = 'application/json'
         if request.method == 'GET':
-            response.headers['Content-Type'] = 'application/json'
             return failed_response
         try:
             data = json.load(utf8reader(request.body))
@@ -100,6 +102,21 @@ def not_support_get(func):
         return func(data)
 
     return wrapper
+
+
+def validate_request(non_string_fields=dict()):
+    def actual_decorator(func):
+        def wrapper(data):
+            for key, value in data.items():
+                if key in non_string_fields:
+                    if not isinstance(value, non_string_fields[key]):
+                        return failed_response
+                    continue
+                if not isinstance(value, str):
+                    return failed_response
+            return func(data)
+        return wrapper
+    return actual_decorator
 
 
 def is_username_valid(username):
@@ -137,6 +154,7 @@ def is_email_valid(email):
 # For testing purposes only
 @route('/restapi/resetdb', method='PUT')
 @not_support_get
+@validate_request()
 def restapi_resetdb(data):
     ok_response = {'status': 'ok'}
 
@@ -161,6 +179,7 @@ def restapi_resetdb(data):
 # For testing purposes only
 @route('/restapi/shutdown', method='PUT')
 @not_support_get
+@validate_request()
 def restapi_shutdown(data):
     ok_response = {'status': 'ok'}
 
@@ -181,6 +200,7 @@ def restapi():
 
 @route('/restapi/register', method=['GET', 'PUT'])
 @not_support_get
+@validate_request()
 def restapi_login(data):
     ok_response = {'status': 'ok'}
 
@@ -216,12 +236,12 @@ def restapi_login(data):
         users_db.delete_one({'_id': user_id})
         return failed_response
 
-    response.headers['Content-Type'] = 'application/json'
     return ok_response
 
 
 @route('/restapi/login', method=['GET', 'PUT'])
 @not_support_get
+@validate_request()
 def restapi_login(data):
     ok_response = {'status': 'ok'}
 
@@ -243,7 +263,6 @@ def restapi_login(data):
     user['login_count'] = user['login_count'] + 1
     users_db.update_one({'_id': user['_id']}, {"$set": user}, upsert=False)
 
-    response.headers['Content-Type'] = 'application/json'
     auth_token = str(uuid4())
     active_sessions.register_new_session(auth_token, username)
     ok_response['token'] = auth_token
@@ -252,6 +271,7 @@ def restapi_login(data):
 
 @route('/restapi/logout', method=['GET', 'PUT'])
 @not_support_get
+@validate_request()
 def restapi_logout(data):
     ok_response = {'status': 'ok'}
 
@@ -268,12 +288,12 @@ def restapi_logout(data):
     active_sessions.unregister_session(token)
     active_sessions.unlock()
 
-    response.headers['Content-Type'] = 'application/json'
     return ok_response
 
 
 @route('/restapi/checkauth', method=['GET', 'PUT'])
 @get_token
+@validate_request()
 def restapi_checkauth(data):
     ok_response = {'status': 'ok'}
 
@@ -282,12 +302,12 @@ def restapi_checkauth(data):
     if not active_sessions.is_session_alive(token):
         return failed_response
 
-    response.headers['Content-Type'] = 'application/json'
     return ok_response
 
 
 @route('/restapi/usermod', method=['GET', 'PUT'])
 @get_token
+@validate_request()
 def restapi_usermod(data):
     ok_response = {'status': 'ok'}
 
@@ -342,12 +362,12 @@ def restapi_usermod(data):
     for key, value in user.items():
         ok_response[key] = value
 
-    response.headers['Content-Type'] = 'application/json'
     return ok_response
 
 
 @route('/restapi/addfriend', method=['GET', 'PUT'])
 @not_support_get
+@validate_request()
 def restapi_addfriend(data):
     ok_response = {'status': 'ok'}
 
@@ -385,6 +405,7 @@ def restapi_addfriend(data):
 
 @route('/restapi/delfriend', method=['GET', 'PUT'])
 @not_support_get
+@validate_request()
 def restapi_delfriend(data):
     ok_response = {'status': 'ok'}
 
@@ -419,6 +440,7 @@ def restapi_delfriend(data):
 
 @route('/restapi/sendmsg', method=['GET', 'PUT'])
 @not_support_get
+@validate_request()
 def restapi_sendmsg(data):
     ok_response = {'status': 'ok'}
 
@@ -466,6 +488,7 @@ def restapi_sendmsg(data):
 
 @route('/restapi/msgmod', method=['GET', 'PUT'])
 @not_support_get
+@validate_request()
 def restapi_msgmod(data):
     ok_response = {'status': 'ok'}
 
@@ -516,6 +539,7 @@ def restapi_msgmod(data):
 
 @route('/restapi/users', method=['GET', 'PUT'])
 @get_token
+@validate_request()
 def restapi_users(data):
     ok_response = {'status': 'ok'}
 
@@ -548,6 +572,7 @@ def restapi_users(data):
 
 @route('/restapi/friends', method=['GET', 'PUT'])
 @get_token
+@validate_request()
 def restapi_friends(data):
     ok_response = {'status': 'ok'}
 
@@ -577,6 +602,7 @@ def restapi_friends(data):
 
 @route('/restapi/messages', method=['GET', 'PUT'])
 @get_token
+@validate_request({'include_read': bool, 'include_received': bool, 'include_sent': bool})
 def restapi_messages(data):
     ok_response = {'status': 'ok'}
 
@@ -620,6 +646,7 @@ def restapi_messages(data):
 
 @route('/restapi/stat', method=['GET', 'PUT'])
 @get_token
+@validate_request()
 def restapi_stat(data):
     ok_response = {'status': 'ok'}
 
@@ -664,6 +691,7 @@ def restapi_stat(data):
 
 @route('/restapi/log', method=['GET', 'PUT'])
 @not_support_get
+@validate_request()
 def restapi_log(data):
     ok_response = {'status': 'ok'}
 
