@@ -17,7 +17,7 @@ hobbies = ['Screaming', 'Yelling', 'Dancing', 'Drilling', 'Singing', 'Swimming',
 
 valid_passwords = ['a' * MIN_PASSWORD_LENGTH, 'a' * MAX_PASSWORD_LENGTH]
 invalid_passwords = ['a' * (MIN_PASSWORD_LENGTH - 1), 'a' * (MAX_PASSWORD_LENGTH + 1),
-                     'invalid password', '<invalid>', '*invalid*', '%invalid%']  # 1234, True
+                     'invalid password', '<invalid>', '*invalid*', '%invalid%', 1234, True]
 
 invalid_usernames = invalid_passwords
 
