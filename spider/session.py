@@ -47,7 +47,10 @@ class Session:
     @staticmethod
     @retry
     def send_request(call_name, request, ret_type=TRUE_OR_FALSE):
-        response = requests.put(Session.restapi_url(call_name), json=request).json()
+        response = requests.put(Session.restapi_url(call_name), json=request)
+        assert 'Content-Type' in response.headers
+        assert response.headers['Content-Type'] == 'application/json'
+        response = response.json()
 
         if response['status'] == 'ok':
             if ret_type == Session.TRUE_OR_FALSE:
