@@ -126,6 +126,38 @@ def test_register():
     assert Session.logout(token)
 
 
+def concurrent_register_routine(username):
+    population = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    password = ''.join([choice(population) for _ in range(16)])
+    new_user = {'username': username, 'password': password}
+
+    if Session.register(new_user):
+        token = Session.login(new_user['username'], new_user['password'])
+        assert token is not None
+        assert Session.logout(token)
+        with Session({'username': new_user['username'], 'password': new_user['password']}) as session:
+            assert session.usermod('password', '1234') is not None
+    else:
+        assert Session.login(new_user['username'], new_user['password']) is None
+
+
+def test_concurrent_register():
+    session_count = 2
+    user_count = 100
+
+    for i in range(1, user_count + 1):
+        username = 'new_user{}'.format(i)
+        pool = Pool(session_count)
+        pool.map(concurrent_register_routine, [username for _ in range(session_count)])
+        pool.close()
+        pool.join()
+
+    for i in range(1, user_count + 1):
+        username = 'new_user{}'.format(i)
+        with Session({'username': username, 'password': '1234'}) as session:
+            assert session.usermod() is not None
+
+
 def test_register_invalid_username():
     new_user = {'username': 'new_user',
                 'password': '1234',
@@ -397,6 +429,8 @@ def test_concurrent_sessions():
 
     pool = Pool(8)
     pool.map(concurrent_session_routine, initial_users * 10)
+    pool.close()
+    pool.join()
 
     for user in initial_users:
         with Session(user) as session:
