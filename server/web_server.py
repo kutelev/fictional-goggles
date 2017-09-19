@@ -155,9 +155,10 @@ def profile_page():
         email = request.forms.email
         hobby = request.forms.hobby
 
-        rest_request = {'token': token, 'real_name': real_name, 'email': email, 'hobby': hobby}
-        if password:
-            rest_request['password'] = password
+        rest_request = {'token': token, 'password': password, 'real_name': real_name, 'email': email, 'hobby': hobby}
+        for key in ('password', 'real_name', 'email', 'hobby'):
+            if not rest_request[key]:
+                del rest_request[key]
 
         rest_response = requests.put('http://localhost:8081/restapi/usermod', json=rest_request).json()
         if rest_response['status'] == 'ok':
