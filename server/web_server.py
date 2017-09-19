@@ -1,6 +1,7 @@
 import requests
 from bottle import route, request, response, redirect, run, SimpleTemplate
 from urllib.parse import urlparse
+from hashlib import md5
 
 
 cookie_secret = 'nboitCJ05G3y80QU'
@@ -57,7 +58,8 @@ info_table_template = \
 
 profile_table_template = \
     SimpleTemplate('<center>{{message}}</center>'
-                   '<form action="/profile" method="post"><table>'
+                   '<form action="/profile" method="post">'
+                   '<input type="hidden" name="csrf_token" value="{{csrf_token}}"><table>'
                    '<tr><td>Username:</td>'
                    '<td><input name="username" value="{{username}}" type="text" readonly /></td></tr>'
                    '<tr><td>Real name:</td>'
@@ -67,6 +69,14 @@ profile_table_template = \
                    '<tr><td>Hobby:</td><td><input name="hobby" value="{{hobby}}" type="text" /></td></tr>'
                    '<tr><td colspan="2" style="text-align: center;"><input value="Update" type="submit" /></td></tr>'
                    '</table></form>')
+
+
+def generate_csrf_token(token):
+    return md5(token.encode()).hexdigest()
+
+
+def validate_csrf_token(token, csrf_token):
+    return True if csrf_token == generate_csrf_token(token) else False
 
 
 def is_authenticated(token):
@@ -155,10 +165,10 @@ def profile_page():
         email = request.forms.email
         hobby = request.forms.hobby
 
-        rest_request = {'token': token, 'password': password, 'real_name': real_name, 'email': email, 'hobby': hobby}
-        for key in ('password', 'real_name', 'email', 'hobby'):
-            if not rest_request[key]:
-                del rest_request[key]
+    if request.method == 'POST' and validate_csrf_token(token, request.forms.csrf_token):
+        rest_request = {'token': token, 'real_name': real_name, 'email': email, 'hobby': hobby}
+        if password:
+            rest_request['password'] = password
 
         rest_response = requests.put('http://localhost:8081/restapi/usermod', json=rest_request).json()
         if rest_response['status'] == 'ok':
@@ -173,9 +183,24 @@ def profile_page():
             real_name = real_name
             email = email
             hobby = hobby
+    elif request.method == 'POST':
+        rest_response = requests.put('http://localhost:8081/restapi/usermod', json={'token': token}).json()
 
-    profile_table = profile_table_template.render(message=message, username=username,
-                                                  real_name=real_name, email=email, hobby=hobby)
+        if rest_response['status'] == 'ok':
+            username = rest_response['username']
+            real_name = rest_response['real_name']
+            email = rest_response['email']
+            hobby = rest_response['hobby']
+        else:
+            username = ''
+            real_name = ''
+            email = ''
+            hobby = ''
+
+        message = 'CSRF attack detected'
+
+    profile_table = profile_table_template.render(message=message, csrf_token=generate_csrf_token(token),
+                                                  username=username, real_name=real_name, email=email, hobby=hobby)
     return main_page_template.render(sub_page_name='Profile', body=profile_table)
 
 
@@ -197,7 +222,7 @@ def users_page():
                   'Please, try to logout and then login.</center>'
         return main_page_template.render(sub_page_name='Users', body=message)
 
-    if request.method == 'POST':
+    if request.method == 'POST' and validate_csrf_token(token, request.forms.csrf_token):
         if request.forms.get('addfriend') or request.forms.get('delfriend'):
             command = 'addfriend' if request.forms.get('addfriend') else 'delfriend'
             friend_username = request.forms.get(command)
@@ -213,6 +238,8 @@ def users_page():
                 message = 'Operation failed. Please, try to logout and then login.'
         else:
             message = ''
+    elif request.method == 'POST':
+        message = 'CSRF attack detected'
     else:
         message = ''
 
@@ -230,15 +257,17 @@ def users_page():
             elif user['is_friend'] in (1, 2):
                 status = 'Semi-friend' if user['is_friend'] == 1 else 'Friend'
                 action = '<form action="" method="post">' \
+                         '<input type="hidden" name="csrf_token" value="{}">' \
                          '<input name="delfriend" value="{}" type="hidden" />' \
                          '<input name="submit" type="submit" value="Remove from friends" />' \
-                         '</form>'.format(user['username'])
+                         '</form>'.format(generate_csrf_token(token), user['username'])
             else:
                 status = ''
                 action = '<form action="" method="post">' \
+                         '<input type="hidden" name="csrf_token" value="{}">' \
                          '<input name="addfriend" value="{}" type="hidden" />' \
                          '<input name="submit" type="submit" value="Add to friends" />' \
-                         '</form>'.format(user['username'])
+                         '</form>'.format(generate_csrf_token(token), user['username'])
             rows.append(row.format(user['username'], status, action))
         if sub_page == 'friends' and not rows:
             users_table = '<center>{}</center><center>You have no friends.</center>'.format(message)
@@ -257,7 +286,7 @@ def users_page():
 def inbox_page():
     token = request.get_cookie('token', secret=cookie_secret)
 
-    if request.method == 'POST':
+    if request.method == 'POST' and validate_csrf_token(token, request.forms.csrf_token):
         if request.forms.get('mark_as_read') or request.forms.get('mark_as_unread'):
             action = 'mark_as_read' if request.forms.get('mark_as_read') else 'mark_as_unread'
             message_id = request.forms.get(action)
@@ -270,6 +299,8 @@ def inbox_page():
                 info_message = 'Operation failed. Please, try to logout and then login.'
         else:
             info_message = ''
+    elif request.method == 'POST':
+        info_message = 'CSRF attack detected'
     else:
         info_message = ''
 
@@ -295,9 +326,11 @@ def inbox_page():
         for message in messages:
             is_read = message['read']
             action = '<form action="" method="post">' \
+                     '<input type="hidden" name="csrf_token" value="{}">' \
                      '<input name="{}" value="{}" type="hidden" />' \
                      '<input name="submit" type="submit" value="{}" />' \
-                     '</form>'.format('mark_as_unread' if is_read else 'mark_as_read',
+                     '</form>'.format(generate_csrf_token(token),
+                                      'mark_as_unread' if is_read else 'mark_as_read',
                                       message['_id'],
                                       'Mark as unread' if is_read else 'Mark as read')
             rows.append(row.render(message=message, action=action))
@@ -342,7 +375,7 @@ def sent_page():
 
     token = request.get_cookie('token', secret=cookie_secret)
 
-    if request.method == 'POST':
+    if request.method == 'POST' and validate_csrf_token(token, request.forms.csrf_token):
         recipient = request.forms.recipient
         content = request.forms.content
         print(content)
@@ -354,6 +387,10 @@ def sent_page():
             content = ''
         else:
             info_message = 'Operation failed. Please, try to logout and then login.'
+    elif request.method == 'POST':
+        recipient = ''
+        content = ''
+        info_message = 'CSRF attack detected'
     else:
         recipient = ''
         content = ''
@@ -366,7 +403,8 @@ def sent_page():
     rest_response = requests.put('http://localhost:8081/restapi/messages', json=rest_request).json()
 
     if rest_response['status'] == 'ok':
-        messages_table = '<center>{}</center><form action="" method="post"><table>' \
+        messages_table = '<center>{}</center><form action="" method="post">' \
+                         '<input type="hidden" name="csrf_token" value="{}"><table>' \
                          '<tr><td>To:</td>' \
                          '<td>{}</td></tr>' \
                          '<tr><td colspan="2">Content:</td></tr>' \
@@ -388,10 +426,12 @@ def sent_page():
             rows.append(row.render(**message))
 
         if not rows:
-            messages_table = messages_table.format(info_message, generate_friend_list(token, recipient),
+            messages_table = messages_table.format(info_message, generate_csrf_token(token),
+                                                   generate_friend_list(token, recipient),
                                                    content, '<center>You have not sent any messages.</center>')
         else:
-            messages_table = messages_table.format(info_message, generate_friend_list(token, recipient),
+            messages_table = messages_table.format(info_message, generate_csrf_token(token),
+                                                   generate_friend_list(token, recipient),
                                                    content, '<table>{}</table>'.format(''.join(rows)))
     else:
         messages_table = '<center>Could not retrieve messages from the server. ' \
