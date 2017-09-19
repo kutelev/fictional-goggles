@@ -131,6 +131,8 @@ is_password_valid = is_username_valid
 
 
 def is_real_name_valid(real_name):
+    if len(real_name) == 0:
+        return True
     if len(real_name) > 64:
         return False
     if re.match('^[a-zA-Z0-9_. -]+$', real_name) is None:
