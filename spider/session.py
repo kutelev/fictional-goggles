@@ -84,11 +84,11 @@ class Session:
     def logout(token):
         return Session.send_request('logout', {'token': token})
 
-    def usermod(self, key=None, new_value=None):
+    def usermod(self, values=dict()):
         request = {'token': self.token}
 
-        if key is not None:
-            request[key] = new_value
+        for key, value in values.items():
+            request[key] = value
 
         return Session.send_request('usermod', request, Session.FULL_RESPONSE_OR_NONE)
 

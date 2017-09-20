@@ -136,7 +136,7 @@ def concurrent_register_routine(username):
         assert token is not None
         assert Session.logout(token)
         with Session({'username': new_user['username'], 'password': new_user['password']}) as session:
-            assert session.usermod('password', '1234') is not None
+            assert session.usermod({'password': '1234'}) is not None
     else:
         assert Session.login(new_user['username'], new_user['password']) is None
 
@@ -173,7 +173,7 @@ def test_register_invalid_username():
 def test_usermod_change_user_name_forbiddance():
     user = initial_users[0]
     with Session(user) as session:
-        assert session.usermod('username', 'new_user_name') is None
+        assert session.usermod({'username': 'new_user_name'}) is None
 
 
 def test_usermod_change_password():
@@ -181,17 +181,75 @@ def test_usermod_change_password():
     old_password = user['password']
     new_password = old_password[::-1]
     with Session({'username': user['username'], 'password': old_password}) as session:
-        assert session.usermod('password', new_password) is not None
+        assert session.usermod({'password': new_password}) is not None
     assert Session.login(user['username'], old_password) is None
     with Session({'username': user['username'], 'password': new_password}) as session:
         assert session.token
-        assert session.usermod('password', old_password) is not None
+        assert session.usermod({'password': old_password}) is not None
     with Session({'username': user['username'], 'password': old_password}) as session:
         assert session.token
         for password in valid_passwords:
-            assert session.usermod('password', password) is not None
+            assert session.usermod({'password': password}) is not None
         for password in invalid_passwords:
-            assert session.usermod('password', password) is None
+            assert session.usermod({'password': password}) is None
+
+
+def random_email():
+    variant = choice((0, 1, 2))
+    if variant == 0:
+        return None
+    if variant == 1:
+        return ''
+    elif variant == 2:
+        return 'user1@users.com'
+
+
+def random_real_name():
+    variant = choice((0, 1, 2))
+    if variant == 0:
+        return None
+    if variant == 1:
+        return ''
+    elif variant == 2:
+        return '{} {}'.format(choice(first_names), choice(last_names))
+
+
+def random_hobby():
+    variant = choice((0, 1, 2))
+    if variant == 0:
+        return None
+    if variant == 1:
+        return ''
+    elif variant == 2:
+        return choice(hobbies)
+
+
+def test_usermod_extended():
+    iteration_count = 100
+    with Session(initial_users[0]) as session:
+        for _ in range(iteration_count):
+            user_info = session.usermod()
+            assert user_info is not None
+            assert user_info['status'] == 'ok'
+            old_email = user_info['email']
+            old_real_name = user_info['real_name']
+            old_hobby = user_info['hobby']
+            new_email = random_email()
+            new_real_name = random_real_name()
+            new_hobby = random_hobby()
+            new_values = dict()
+            if new_email is not None:
+                new_values['email'] = new_email
+            if new_real_name is not None:
+                new_values['real_name'] = new_real_name
+            if new_hobby is not None:
+                new_values['hobby'] = new_hobby
+            user_info = session.usermod(new_values)
+            assert user_info is not None
+            assert user_info['status'] == 'ok'
+            assert user_info['email'] == (new_email if new_email is not None else old_email)
+            assert user_info['real_name'] == (new_real_name if new_real_name is not None else old_real_name)
+            assert user_info['hobby'] == (new_hobby if new_hobby is not None else old_hobby)
 
 
 def test_add_del_friend():
